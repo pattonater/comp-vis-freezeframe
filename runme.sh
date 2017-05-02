@@ -70,8 +70,8 @@ popd
 # src/imgpro input/d_face1.jpg output/face_harris.jpg \
 #     -harris 2.0
 
-src/imgpro input/c_bridge1.jpg output/c_bridge1_features.jpg \
-    -features 10
+# src/imgpro input/c_bridge1.jpg output/c_bridge1_features.jpg \
+#     -features 10
 
 # src/imgpro input/d_face1.jpg output/d_face1_features.jpg \
 #     -features 450
@@ -119,11 +119,11 @@ src/imgpro input/c_bridge1.jpg output/c_bridge1_features.jpg \
 # src/imgpro input/e_sitting1.jpg output/e_sitting_matched_old.jpg \
 #     -matchHomography input/e_sitting2.jpg
 
-# src/imgpro input/d_face1.jpg output/d_face_matched_old.jpg \
-#     -matchHomography input/d_face2.jpg
+src/imgpro input/d_face1.jpg output/d_face_matched_old.jpg \
+    -matchHomography input/d_face2.jpg
 
-src/imgpro input/c_bridge1.jpg output/c_bridge_matched_old.jpg \
-    -matchHomography input/c_bridge2.jpg
+# src/imgpro input/c_bridge1.jpg output/c_bridge_matched_old.jpg \
+#     -matchHomography input/c_bridge2.jpg
 
 # src/imgpro input/dolac_market1.jpg output/dolac_market_matched_old.jpg \
 #     -matchHomography input/dolac_market2.jpg

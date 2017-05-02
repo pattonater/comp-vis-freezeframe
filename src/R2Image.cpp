@@ -13,6 +13,671 @@
 // #include <stdlib.h>     /* srand, rand */
 // #include <time.h>       /* time */
 
+///////////////////////
+// Macros (functionally)
+//////////////////////
+bool R2Image:: inBounds(const Point p) const { return inBounds(p.x, p.y); }
+bool R2Image:: inBounds(const int x, const int y) const { return (x >= 0) && (x < width) && (y >= 0) && (y < height); }
+
+
+
+///////////////////////
+// Function Calls
+//////////////////////
+void R2Image::
+FeatureDetector(double numFeatures) {
+  // Find 
+  std::vector<Feature> selectedFeatures;
+  findFeatures(150, 10, false, *this, selectedFeatures);
+
+  // Mark selected features
+  for (int i = 0; i < selectedFeatures.size(); i++) {
+    //printf("scale: %f \n", selectedFeatures[i].charScale);
+    //drawSquare(selectedFeatures[i].x, selectedFeatures[i].y, 8 * selectedFeatures[i].charScale, 0, 1, 0);
+    drawCircle(selectedFeatures[i].x, selectedFeatures[i].y, 10 * selectedFeatures[i].charScale, 0, 1, 0); 
+  }
+}
+
+void R2Image::
+TrackFeatures(int numFeatures, R2Image& originalImage) {
+  // Search for matches (a in original image, b in this one)
+  std::vector<FeatureMatch> matches;
+  findMatches(numFeatures, numFeatures, originalImage, matches);
+
+  classifyMatchesWithDltRANSAC(matches);
+  drawMatches(matches);
+}
+
+
+void R2Image::
+MatchImage(R2Image& originalImage) {
+  const int numFeatures = 150;
+
+  // Search for matches (a in original image, b in this one)
+  std::vector<FeatureMatch> matches;
+  findMatches(numFeatures, numFeatures, originalImage, matches);
+
+  // classify matches as good or bad
+  classifyMatchesWithDltRANSAC(matches);
+
+  // separate out good matches
+  std::vector<FeatureMatch> goodMatches;
+  for (int i = 0; i < matches.size(); i++) {
+     if (matches[i].verifiedMatch) {
+      goodMatches.push_back(matches[i]);
+    }
+  }
+
+  // Compute homography matrix (this will be the matrix from original Image to this image as that is direction of feature matches)
+  std::vector<double> homographyMatrix;
+  computeHomographyMatrixWithDLT(goodMatches, homographyMatrix);
+  
+  transformImage(homographyMatrix);
+  //blendWithImage(originalImage);
+}
+
+
+///////////////////////
+// Match Finding
+//////////////////////
+
+void R2Image::
+findMatches(const int numFeatures, const int numMatches, R2Image& originalImage, std::vector<FeatureMatch>& matches) {
+  const int minFeatureDistance = 10;
+
+  // Find features in the other image
+  std::vector<Feature> selectedFeatures;
+  findFeatures(numFeatures, minFeatureDistance, false, originalImage, selectedFeatures);
+
+  // Search for matches
+  const double searchAreaPercentage = 0.2;
+  const int searchWidthReach = width * searchAreaPercentage / 2;
+  const int searchHeightReach = height * searchAreaPercentage / 2;
+  const int ssdCompareReach = 3;
+
+  for (int f = 0; f < selectedFeatures.size(); f++) {   
+      if (f >= numMatches) {
+       break;
+     }
+      FeatureMatch match = findFeatureMatch(selectedFeatures[f], ssdCompareReach, searchWidthReach, searchHeightReach, originalImage);
+      matches.push_back(match);
+  }
+}
+
+FeatureMatch R2Image::
+findFeatureMatch(const Feature& feature, const int ssdCompareReach, const int searchWidthReach, const int searchHeightReach, R2Image& originalImage) {
+    const int maxPossibleSSD = (2 * ssdCompareReach + 1) * (2 * ssdCompareReach + 1) * 3;
+    FeatureMatch match(feature, maxPossibleSSD);
+
+    // Search all pixels in search area to find most similar feature
+    for (int i = fmax(0, feature.x - searchWidthReach); i < fmin(width, feature.x + searchWidthReach); i++) {
+      for (int j = fmax(0, feature.y - searchHeightReach); j < fmin(height, feature.y + searchHeightReach); j++) {       
+        
+        // compare SSD
+        const float ssd = calculateSSD(i, j, feature.x, feature.y, originalImage, ssdCompareReach);
+        if (ssd < match.ssd) {
+           match.secondBestSSD = match.ssd; 
+           match.ssd = ssd;
+           match.b = Feature(Pixel(i, j), i, j);
+        }
+      }
+    }
+    return match;
+}
+
+// x0 and y0 associated with this image, x1 and y1 associated with the passed in "otherImage"
+float R2Image::
+calculateSSD(const int x0, const int y0, const int x1, const int y1, R2Image& otherImage, const int ssdCompareReach) {
+  float sum = 0;
+  for (int i = -ssdCompareReach; i < ssdCompareReach + 1; i++) {
+    for (int j = -ssdCompareReach; j < ssdCompareReach + 1; j++) {
+      if (inBounds(x0 + i, y0 + j) && inBounds(x1 + i, y1 + j)) {
+          const R2Pixel& a = Pixel(x0 + i, y0 + j);
+          const R2Pixel& b = otherImage.Pixel(x1 + i, y1 + j);
+
+          const float rDif = a.Red() - b.Red();
+          const float gDif = a.Green() - b.Green();
+          const float bDif = a.Blue() - b.Blue();
+
+          sum += (rDif * rDif + gDif * gDif + bDif * bDif);
+        } else {
+          // account for out of bounds pixels by assigning them a difference of half maximum
+          sum += 3;
+        }    
+    }
+  }   
+    return sum;
+}
+
+
+///////////////////////
+// Feature Finding
+//////////////////////
+void R2Image::
+findFeatures(double numFeatures, double minDistance, bool scaleInvariant, R2Image& image, std::vector<Feature>& selectedFeatures) {
+  std::vector<Feature> features;
+
+  const double sigma = 2.0;
+  R2Image harris(image);
+  harris.Harris(sigma, false);
+
+  // Grab all features above a certain luminance threshold (anything Harris identifies as as not a line or background)
+  for (int i = 0; i < image.Width(); i++) {
+    for (int j = 0; j < image.Height(); j++) {    
+      if (scaleInvariant || (harris.Pixel(i, j).Luminance() > 0.5)) {
+          features.push_back(Feature(harris.Pixel(i, j), i, j, sigma));
+      }     
+    }
+  }
+  // Finds characteristic scale for each point, sort them into feature scale groups (which are sorted from smallest to biggest)
+  if (scaleInvariant) {
+    findScaleInvariantHarrisFeaturePoints(features, image);
+  }
+
+  // Sort features from smallest to biggest
+  std::sort(features.begin(), features.end()); 
+  
+  const int numFeaturesWanted = fmin(numFeatures, features.size());
+
+  // Take most prominent features that are far enough apart
+  for (int i = features.size() - 1; i > 0 ; i--) {
+    bool shouldInsert = shouldInsertFeature(selectedFeatures, features[i], minDistance);
+    if (shouldInsert) {
+      selectedFeatures.push_back(features[i]);
+    } 
+
+    if (selectedFeatures.size() >= numFeaturesWanted) {
+      break;
+    }
+  }
+}
+
+
+bool R2Image::
+shouldInsertFeature(const std::vector<Feature>& features, const Feature& feature, const int minDistance) const {
+  // Features array should be sorted from largest to smallest
+
+  // Check to see if new feature smaller than any conflicting existing features
+  for (int i = 0; i < features.size(); i++) {
+    const Feature& existingFeature = features[i];
+
+    // if larger existing feature conflicts return
+    if ((feature.charScale == existingFeature.charScale) && feature.closeTo(existingFeature, minDistance * (feature.charScale - 1))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void R2Image::
+findScaleInvariantHarrisFeaturePoints(std::vector<Feature>& features, R2Image& image) {
+  const int size = features.size();
+
+  // loop over sigma values, keeping track of largest harris values and associated sigmas
+  for (int s = 1; s < 10; s++) {
+    const double sigma = 2 * s;
+    R2Image harris(image);
+    harris.Harris(sigma, false);
+
+    for (int i = 0; i < size; i++) {
+      Feature& f = features[i];
+      const R2Pixel& p = harris.Pixel(f.x, f.y);
+
+      const double newL = p.Luminance();
+      const double oldL = f.pixel.Luminance();
+
+      if (newL > oldL) {
+        f.pixel = p;
+        f.charScale = sigma;
+       }     
+    }
+  }
+}
+
+///////////////////////
+// DLT
+//////////////////////
+void R2Image::
+classifyMatchesWithDltRANSAC(std::vector<FeatureMatch>& matches) const {
+  srand (time(NULL));
+
+  std::vector<double> bestHomographyMatrix;
+  int numGoodMatches = 0;
+
+  const int numTrials = 1000;
+  for (int i = 0; i < numTrials; i++) {
+    int tempNumGoodMatches = 0;
+    std::vector<double> tempHomographyMatrix;
+
+    // Pick 4 matches randomly
+    std::vector<FeatureMatch> correspondences;
+    std::vector<int> selectedMatches;
+    for (int j = 0; j < 4; j++) {
+      int randMatch = rand() % matches.size();
+      while (contains(randMatch, selectedMatches)) {
+        randMatch = rand() % matches.size();
+      }
+      selectedMatches.push_back(randMatch);
+      correspondences.push_back(matches[randMatch]);
+    }
+
+    // calculate tempHomographyMatrix with dlt
+    computeHomographyMatrixWithDLT(correspondences, tempHomographyMatrix);
+
+    // Find how many other vectors have similar motion vectors (keep track of largest set)
+    for (int j = 0; j < matches.size(); j++) {
+      const FeatureMatch& match = matches[j];
+      const bool goodTransform = checkHomographySimilarity(match, tempHomographyMatrix);
+
+      tempNumGoodMatches += (goodTransform ? 1 : 0);
+    }
+
+    if (tempNumGoodMatches > numGoodMatches) {
+        numGoodMatches = tempNumGoodMatches;
+        bestHomographyMatrix = tempHomographyMatrix;
+    }
+  }
+
+  // Copy info about biggest set of good matches over to actual matches
+  for (int a = 0; a < matches.size(); a++) {
+    matches[a].verifiedMatch = checkHomographySimilarity(matches[a], bestHomographyMatrix);
+  }
+}   
+
+void R2Image::
+computeHomographyMatrixWithDLT(const std::vector<FeatureMatch>& matches, std::vector<double>& homographyMatrix) const {
+  const bool shouldPrint = false;
+
+  const int width = 9;
+  int height = matches.size() * 2;
+
+  // Fill line equations matrix from given point correspondences 
+  double** lineEquations = dmatrix(1, height, 1, width);
+  if (shouldPrint) { printf("Points: \n"); }
+  // Construct matrix A (lineEquations)
+  for (int i = 0; i < height; i += 2) {
+     const int match = i / 2;
+     const Feature& fa = matches[match].a;
+     const Feature& fb = matches[match].b;
+
+     // Not sure if it matters if are doubles so convert to points for now to ensure doubles (easy to change)
+     const Point a(fa.x, fa.y);//a(matchesA[match][0], matchesA[match][1]); //a(fb.x, fb.y);
+     const Point b(fb.x, fb.y);//b(matchesA[match][2], matchesA[match][3]);  //b(fa.x, fa.y);
+
+     if (shouldPrint) { printf("(%f, %f) -> (%f, %f) \n", a.x, a.y, b.x, b.y); }
+
+     const double row1[9] = { 0, 0, 0, -a.x, -a.y, -1, b.y * a.x, b.y * a.y, b.y };
+     const double row2[9] = { a.x, a.y, 1, 0, 0, 0, -a.x * b.x, -b.x * a.y, -b.x };
+
+     for (int j = 0; j < 9; j++) {
+        lineEquations[i + 1][j + 1] = row1[j];
+        lineEquations[i + 2][j + 1] = row2[j];
+     }
+  }
+
+  if (shouldPrint) {
+  printf("\n A: \n");
+  for (int i = 0; i < height; i++) {
+    for (int j = 0; j < width; j++) {
+      printf("%f ", lineEquations[i+1][j+1]);
+    }
+    printf("\n");
+  }
+  }
+  
+  // compute the SVD
+  double** nullspaceMatrix = dmatrix(1, 10, 1, 10);
+  const int numSingularValues = 9;
+	double singularValues[numSingularValues + 1]; // 1..numSingularValues
+   
+	svdcmp(lineEquations, height, width, singularValues, nullspaceMatrix);
+
+  if (shouldPrint) {
+    printf("\n Singular Values: \n");
+    for (int i = 1; i <= numSingularValues; i++) {
+       printf("%f ", singularValues[i]);
+    }
+    printf("\n");
+
+     printf("\n Nullspace Matrix: \n");
+    for (int i = 0; i < 10; i++) {
+      for (int j = 0; j < 10; j++) {
+        printf("%f ", nullspaceMatrix[i + 1][j + 1]);
+      }
+      printf("\n");
+    }
+  }
+
+  // Find row of smallest singular value 
+  int solutionCol = 0;
+  for (int i = 1; i < numSingularValues; i++) {
+    if (singularValues[i + 1] < singularValues[solutionCol + 1]) {
+      solutionCol = i;
+    }
+  }
+
+  // Map solution column to 3x3 solution matrix (outdated description)
+  for (int i = 0; i < 9; i++) {
+    homographyMatrix.push_back(nullspaceMatrix[i + 1][solutionCol + 1]);
+  }
+
+  if (shouldPrint) {
+      printf("\n H: \n");
+      for (int i = 0; i < 3; i++) {
+        printf("%f, %f, %f \n", homographyMatrix[3 * i], homographyMatrix[3 * i + 1], homographyMatrix[3 * i + 2]);
+      }
+  } 
+}
+
+bool R2Image::
+checkHomographySimilarity(const FeatureMatch& match, const std::vector<double>& homographyMatrix) const {
+   const Feature& a = match.a;
+   const Feature& real_b = match.b;
+
+   Point calculated_b = transformPoint(a.x, a.y, homographyMatrix);
+
+   const int threshold = 5;
+   const int xDiff = std::abs(real_b.x - calculated_b.x);
+   const int yDiff = std::abs(real_b.y - calculated_b.y);
+
+  return (xDiff < threshold) && (yDiff < threshold);
+}
+
+bool R2Image:: 
+contains(const int number, const std::vector<int>& vector) const {
+  for (int i = 0; i < vector.size(); i++) {
+    if(vector[i] == number) return true;
+  }
+  return false;
+}
+
+
+///////////////////////
+// Image Transformation
+//////////////////////
+
+Point R2Image::
+transformPoint(const int x0, const int y0, const std::vector<double>& homographyMatrix) const {
+  double x = homographyMatrix[0] * x0 + homographyMatrix[1] * y0 + homographyMatrix[2];
+  double y = homographyMatrix[3] * x0 + homographyMatrix[4] * y0 + homographyMatrix[5];
+  const double w = homographyMatrix[6] * x0 + homographyMatrix[7] * y0 + homographyMatrix[8];
+
+  //printf("x: %f, y: %f, w: %f \n", x, y, w);
+
+  // normalize with w
+  x /= w;
+  y /= w;
+
+  return Point(x, y);
+}
+
+void R2Image::
+transformImage(const std::vector<double>& homographyMatrix) {
+  R2Image transformedImage(width, height);
+
+  for (int i = 0; i < width; i++) {
+    for (int j = 0;  j < height; j++) {
+      const Point p = transformPoint(i, j, homographyMatrix);
+      const int x0 = p.x;
+      const int y0 = p.y;
+      
+      const int x1 = x0 + 1;
+      const int y1 = y0 + 1;
+
+      if (inBounds(x0, y0) && inBounds(x1, y1)) {
+        const double alphaX = p.x - x0;
+        const double alphaY = p.y - y0;
+
+        R2Pixel upperHalf = (1 - alphaX) * Pixel(x0, y0) + alphaX * Pixel(x1, y0);
+        R2Pixel lowerHalf = (1 - alphaX) * Pixel(x0, y1) + alphaX * Pixel(x1, y1);
+
+        transformedImage.Pixel(i, j) = (1 - alphaY) * upperHalf + alphaY * lowerHalf;
+      } else if (inBounds(x0, y0)) {
+        transformedImage.Pixel(i, j) = Pixel(x0, y0);
+      } else if (inBounds(x1,y1)) {
+        transformedImage.Pixel(i, j) = Pixel(x1, y1);
+      }
+    }
+  }
+
+  *this = transformedImage;
+}
+
+
+void R2Image::
+blendWithImage(R2Image& otherImage) {
+  for (int i = 0; i < width; i++) {
+    for (int j = 0; j < height; j++) {
+      Pixel(i,j) = 0.5 * Pixel(i, j) + 0.5 * otherImage.Pixel(i, j);
+    }
+  }
+}
+
+
+///////////////////////
+// Basic Filtering
+//////////////////////
+
+void R2Image::
+SobelX(void)
+{
+  int sobelY[3][3] = {
+    {1, 0, -1},
+    {2, 0, -2},
+    {1, 0, -1}
+  };
+
+  applyFilter3x3(sobelY);
+}
+
+void R2Image::
+SobelY(void)
+{
+	// Apply the Sobel oprator to the image in Y direction
+  int sobelX[3][3] = {
+    {-1, -2, -1},
+    {0, 0, 0},
+    {1, 2, 1}
+  };
+
+	// Apply the Sobel oprator to the image in X direction
+  applyFilter3x3(sobelX);
+}
+
+// Apply a 3x3 filter to an image
+void R2Image::
+applyFilter3x3( int filter[3][3]) {
+  R2Image tempImage(width, height);
+
+  for (int i = 1; i < width - 1; i++) {
+    for (int j = 1;  j < height - 1; j++) {
+      // Save effect of filter into temp image
+      R2Pixel tempPixel;
+      for (int a = 0; a < 3; a++) {
+        for (int b = 0; b < 3; b++) {
+          tempPixel += filter[a][b] * Pixel(i - 1 + a, j - 1 + b);
+        }
+      }
+      //tempPixel.Clamp();
+      tempImage.Pixel(i, j) = tempPixel;
+    }
+  }
+
+  // Copy changes back from temp image
+  for (int i = 1; i < width; i++) {
+    for (int j = 1;  j < height; j++) {
+      Pixel(i, j) = tempImage.Pixel(i, j);
+    }
+  }
+}
+
+// Calculates Gaussian distribution value
+double gaussianDistribution(double sigma, int x) {
+  double frac = 1.0 / (sqrt(2.0 * M_PI) * sigma);
+  double expo = exp(-(x * x) / (2.0 * sigma * sigma));
+  return frac * expo;
+}
+
+// Linear filtering ////////////////////////////////////////////////
+void R2Image::
+Blur(double sigma, bool clamped)
+{
+  R2Image tempImage(width, height);
+  const int kernelLength = 6 * sigma + 1;
+  const int kernelReach = 3 * sigma;
+
+  // Construct kernel
+  double gaussianKernel[kernelLength];
+  for (int i = 0; i < kernelLength; i++) {
+    gaussianKernel[i] = gaussianDistribution(sigma, i - kernelReach);
+  }
+
+  // Vertical pass
+  for (int i = 0; i < width; i++) {
+    for (int j = 0; j < height; j++) {
+      R2Pixel tempPixel;
+      double weightSum = 0;
+
+      const int lowerBound = fmax(-kernelReach, -j);
+      const int upperBound = fmin(kernelReach + 1, height - j);
+      for (int a = lowerBound; a < upperBound; a++) {
+        tempPixel += Pixel(i, j + a) * gaussianKernel[a + kernelReach];
+        weightSum += gaussianKernel[a + kernelReach];
+      }
+      tempPixel /= weightSum;
+      if (clamped) {
+        tempPixel.Clamp();
+      }
+      tempImage.Pixel(i, j) = tempPixel;
+    }
+  }
+
+  // Horizontal pass
+  for (int i = 0; i < width; i++) {
+    for (int j = 0; j < height; j++) {
+      R2Pixel tempPixel;
+      double weightSum = 0;
+      const int lowerBound = fmax(-kernelReach, -i);
+      const int upperBound = fmin(kernelReach + 1, width - i);
+      for (int a = lowerBound; a < upperBound; a++) {
+        tempPixel += tempImage.Pixel(i + a, j) * gaussianKernel[a + kernelReach];
+        weightSum += gaussianKernel[a + kernelReach];
+      }
+      tempPixel /= weightSum;
+      if (clamped) {
+        tempPixel.Clamp();
+      }
+      Pixel(i, j) = tempPixel;
+    }
+  }
+}
+
+///////////////////////
+// Drawing
+//////////////////////
+
+void R2Image::
+drawMatches(const std::vector<FeatureMatch> matches) {
+  for (int i = 0; i < matches.size(); i++) {
+    const FeatureMatch& match = matches[i];
+    const Feature& a = matches[i].a;
+    const Feature& b = matches[i].b;
+
+    if (match.verifiedMatch) {
+      // Green box on new point and line from old point
+      drawSquare(b.x, b.y, 5, 0, 1, 0);
+      drawLine(a.x, a.y, b.x, b.y, 0, 1, 0);
+    } else {
+      // Red box on original point
+      //drawSquare(a.x, a.y, 2, 1, 0, 0);
+
+      // red box on new point, and line from old point
+      drawSquare(b.x, b.y, 5, 1, 0, 0);
+      drawLine(a.x, a.y, b.x, b.y, 1, 0, 0);
+    }
+  }
+}
+
+void R2Image::
+drawCircle(const int x0, const int y0, const int radius, const float r, const float g, const float b) {
+  int x = radius;
+  int y = 0;
+  int error = 0;
+
+  while (x >= y) {
+    if (inBounds(x0 + x, y0 + y)) Pixel(x0 + x, y0 + y) = R2Pixel(r, g, b, 1);
+    if (inBounds(x0 + y, y0 + x)) Pixel(x0 + y, y0 + x) = R2Pixel(r, g, b, 1);
+    if (inBounds(x0 - x, y0 + y)) Pixel(x0 - x, y0 + y) = R2Pixel(r, g, b, 1);
+    if (inBounds(x0 - y, y0 + x)) Pixel(x0 - y, y0 + x) = R2Pixel(r, g, b, 1);
+    if (inBounds(x0 - x, y0 - y)) Pixel(x0 - x, y0 - y) = R2Pixel(r, g, b, 1);
+    if (inBounds(x0 - y, y0 - x)) Pixel(x0 - y, y0 - x) = R2Pixel(r, g, b, 1);
+    if (inBounds(x0 + x, y0 - y)) Pixel(x0 + x, y0 - y) = R2Pixel(r, g, b, 1);
+    if (inBounds(x0 + y, y0 - x)) Pixel(x0 + y, y0 - x) = R2Pixel(r, g, b, 1);
+
+    if (error <= 0) {
+      y += 1;
+      error += 2 * y + 1;
+    } else {
+      x -= 1;
+      error -= 2 * x + 1;
+    }
+  }
+}
+
+
+void R2Image::
+drawSquare(const int x, const int y, const int reach, const float r, const float g, const float b) {
+  const int xMax = fmin(width - 1, x + reach);
+  const int xMin = fmax(0, x - reach);
+  const int yMax = fmin(width - 1, y + reach);
+  const int yMin = fmax(0, y - reach);
+
+  for (int i = -reach; i < reach + 1; i++) {
+    const int xi = fmax(0, fmin(width-1, x + i));
+    const int yi = fmax(0, fmin(height-1, y + i));
+
+    Pixel(xMin, yi) = R2Pixel(r, g, b, 1);
+    Pixel(xMax, yi) = R2Pixel(r, g, b, 1);
+    Pixel(xi, yMin) = R2Pixel(r, g, b, 1);
+    Pixel(xi, yMax) = R2Pixel(r, g, b, 1);
+  }
+}
+
+void R2Image::
+drawLine(int x0, int y0, int x1, int y1, const float r, const float g, const float b) {
+  if (x0 > 3 && x0 < width - 3 && y0 > 3 && y0 < height - 3) {
+		 for (int x = x0 - 3; x <= x0 + 3; x++) {
+			 for (int y = y0-3 ; y <= y0 + 3; y++) {
+				 Pixel(x,y).Reset(r,g,b,1.0);
+			 }
+		 }
+	 }
+
+	if (x0 > x1) {
+		int x = y1; y1 = y0; y0 = x;
+    x = x1; x1 = x0; x0 = x;
+	}
+  int deltax = x1 - x0;
+  int deltay = y1 - y0;
+  float error = 0; 
+  float deltaerr = 0.0;
+	if(deltax!=0) deltaerr =fabs(float(float(deltay) / deltax));    // Assume deltax != 0 (line is not vertical),
+           // note that this division needs to be done in a way that preserves the fractional part
+  int y = y0;
+  for(int x = x0; x <= x1; x++) {
+		Pixel(x,y).Reset(r,g,b,1.0);
+    error = error + deltaerr;
+    if (error >= 0.5) {
+			 if (deltay > 0) y = y + 1;
+			 else y = y - 1;
+
+       error = error - 1.0;
+		 }
+	 }
+}
+
+
+
 
 
 
@@ -270,138 +935,7 @@ Brighten(double factor)
   }
 }
 
-void R2Image::
-SobelX(void)
-{
-  int sobelY[3][3] = {
-    {1, 0, -1},
-    {2, 0, -2},
-    {1, 0, -1}
-  };
 
-  applyFilter3x3(sobelY);
-}
-
-void R2Image::
-SobelY(void)
-{
-	// Apply the Sobel oprator to the image in Y direction
-  int sobelX[3][3] = {
-    {-1, -2, -1},
-    {0, 0, 0},
-    {1, 2, 1}
-  };
-
-	// Apply the Sobel oprator to the image in X direction
-  applyFilter3x3(sobelX);
-}
-
-// Apply a 3x3 filter to an image
-void R2Image::
-applyFilter3x3( int filter[3][3]) {
-  R2Image tempImage(width, height);
-
-  for (int i = 1; i < width - 1; i++) {
-    for (int j = 1;  j < height - 1; j++) {
-      // Save effect of filter into temp image
-      R2Pixel tempPixel;
-      for (int a = 0; a < 3; a++) {
-        for (int b = 0; b < 3; b++) {
-          tempPixel += filter[a][b] * Pixel(i - 1 + a, j - 1 + b);
-        }
-      }
-      //tempPixel.Clamp();
-      tempImage.Pixel(i, j) = tempPixel;
-    }
-  }
-
-  // Copy changes back from temp image
-  for (int i = 1; i < width; i++) {
-    for (int j = 1;  j < height; j++) {
-      Pixel(i, j) = tempImage.Pixel(i, j);
-    }
-  }
-}
-
-void R2Image::
-LoG(void)
-{
-  // Apply the LoG oprator to the image
-
-  // FILL IN IMPLEMENTATION HERE (REMOVE PRINT STATEMENT WHEN DONE)
-  fprintf(stderr, "LoG() not implemented\n");
-}
-
-void R2Image::
-ChangeSaturation(double factor)
-{
-  // Changes the saturation of an image
-  // Find a formula that changes the saturation without affecting the image brightness
-
-  // FILL IN IMPLEMENTATION HERE (REMOVE PRINT STATEMENT WHEN DONE)
-  fprintf(stderr, "ChangeSaturation(%g) not implemented\n", factor);
-}
-
-// Calculates Gaussian distribution value
-double gaussianDistribution(double sigma, int x) {
-  double frac = 1.0 / (sqrt(2.0 * M_PI) * sigma);
-  double expo = exp(-(x * x) / (2.0 * sigma * sigma));
-  return frac * expo;
-}
-
-// Linear filtering ////////////////////////////////////////////////
-void R2Image::
-Blur(double sigma, bool clamped)
-{
-  R2Image tempImage(width, height);
-  const int kernelLength = 6 * sigma + 1;
-  const int kernelReach = 3 * sigma;
-
-  // Construct kernel
-  double gaussianKernel[kernelLength];
-  for (int i = 0; i < kernelLength; i++) {
-    gaussianKernel[i] = gaussianDistribution(sigma, i - kernelReach);
-  }
-
-  // Vertical pass
-  for (int i = 0; i < width; i++) {
-    for (int j = 0; j < height; j++) {
-      R2Pixel tempPixel;
-      double weightSum = 0;
-
-      const int lowerBound = fmax(-kernelReach, -j);
-      const int upperBound = fmin(kernelReach + 1, height - j);
-      for (int a = lowerBound; a < upperBound; a++) {
-        tempPixel += Pixel(i, j + a) * gaussianKernel[a + kernelReach];
-        weightSum += gaussianKernel[a + kernelReach];
-      }
-      tempPixel /= weightSum;
-      if (clamped) {
-        tempPixel.Clamp();
-      }
-      tempImage.Pixel(i, j) = tempPixel;
-    }
-  }
-
-  // Horizontal pass
-  for (int i = 0; i < width; i++) {
-    for (int j = 0; j < height; j++) {
-      R2Pixel tempPixel;
-      double weightSum = 0;
-      const int lowerBound = fmax(-kernelReach, -i);
-      const int upperBound = fmin(kernelReach + 1, width - i);
-      for (int a = lowerBound; a < upperBound; a++) {
-        tempPixel += tempImage.Pixel(i + a, j) * gaussianKernel[a + kernelReach];
-        weightSum += gaussianKernel[a + kernelReach];
-      }
-      tempPixel /= weightSum;
-      if (clamped) {
-        tempPixel.Clamp();
-      }
-      Pixel(i, j) = tempPixel;
-    }
-  }
-}
 
 void R2Image::
 HighPass(double sigma, double contrast) {
@@ -465,288 +999,6 @@ Harris(double sigma, bool clamped)
   }
 }
 
-// void drawcircle(int x0, int y0, int radius)
-// {
-//     int x = radius;
-//     int y = 0;
-//     int err = 0;
-
-//     while (x >= y)
-//     {
-//         putpixel(x0 + x, y0 + y);
-//         putpixel(x0 + y, y0 + x);
-//         putpixel(x0 - y, y0 + x);
-//         putpixel(x0 - x, y0 + y);
-//         putpixel(x0 - x, y0 - y);
-//         putpixel(x0 - y, y0 - x);
-//         putpixel(x0 + y, y0 - x);
-//         putpixel(x0 + x, y0 - y);
-
-//         if (err <= 0)
-//         {
-//             y += 1;
-//             err += 2*y + 1;
-//         }
-//         if (err > 0)
-//         {
-//             x -= 1;
-//             err -= 2*x + 1;
-//         }
-//     }
-// }
-
-void R2Image::
-drawCircle(const int x0, const int y0, const int radius, const float r, const float g, const float b) {
-  int x = radius;
-  int y = 0;
-  int error = 0;
-
-  while (x >= y) {
-    if (inBounds(x0 + x, y0 + y)) Pixel(x0 + x, y0 + y) = R2Pixel(r, g, b, 1);
-    if (inBounds(x0 + y, y0 + x)) Pixel(x0 + y, y0 + x) = R2Pixel(r, g, b, 1);
-    if (inBounds(x0 - x, y0 + y)) Pixel(x0 - x, y0 + y) = R2Pixel(r, g, b, 1);
-    if (inBounds(x0 - y, y0 + x)) Pixel(x0 - y, y0 + x) = R2Pixel(r, g, b, 1);
-    if (inBounds(x0 - x, y0 - y)) Pixel(x0 - x, y0 - y) = R2Pixel(r, g, b, 1);
-    if (inBounds(x0 - y, y0 - x)) Pixel(x0 - y, y0 - x) = R2Pixel(r, g, b, 1);
-    if (inBounds(x0 + x, y0 - y)) Pixel(x0 + x, y0 - y) = R2Pixel(r, g, b, 1);
-    if (inBounds(x0 + y, y0 - x)) Pixel(x0 + y, y0 - x) = R2Pixel(r, g, b, 1);
-
-    if (error <= 0) {
-      y += 1;
-      error += 2 * y + 1;
-    } else {
-      x -= 1;
-      error -= 2 * x + 1;
-    }
-  }
-}
-
-// void R2Image::
-// drawCircle2(const int xCenter, const int yCenter, const int radius, const float r, const float g, const float b) {
-//   const int xMin = fmax(0, xCenter - radius);
-//   const int xMax = fmin(width - 1, xCenter + radius);
-//   const int r2 = radius * radius;
-
-//   printf("%d, %d, %d \n\n", xMin, xMax, r2);
-//   for (int d = -radius; d < radius + 1; d++) {
-//      const int yOffset = (int)(sqrt(abs(r2 - d*d)) + 0.5);
-
-//      printf("yOffset: %d \n", yOffset);
-
-//      const int x = xCenter + d;
-//      const int y0 = yCenter - yOffset;
-//      const int y1 = yCenter + yOffset;
-
-//      //printf("%d, %d, %d \n", yOffset, y0, y1);
-
-//      if (inBounds(x, y0)) Pixel(x, y0) = R2Pixel(r, g, b, 1);
-//      if (inBounds(x, y1)) Pixel(x, y1) = R2Pixel(r, g, b, 1);
-//   }
-// }
-
-void R2Image::
-drawSquare(const int x, const int y, const int reach, const float r, const float g, const float b) {
-  const int xMax = fmin(width - 1, x + reach);
-  const int xMin = fmax(0, x - reach);
-  const int yMax = fmin(width - 1, y + reach);
-  const int yMin = fmax(0, y - reach);
-
-  for (int i = -reach; i < reach + 1; i++) {
-    const int xi = fmax(0, fmin(width-1, x + i));
-    const int yi = fmax(0, fmin(height-1, y + i));
-
-    Pixel(xMin, yi) = R2Pixel(r, g, b, 1);
-    Pixel(xMax, yi) = R2Pixel(r, g, b, 1);
-    Pixel(xi, yMin) = R2Pixel(r, g, b, 1);
-    Pixel(xi, yMax) = R2Pixel(r, g, b, 1);
-  }
-}
-
-void R2Image::
-drawLine(int x0, int y0, int x1, int y1, const float r, const float g, const float b) {
-  if (x0 > 3 && x0 < width - 3 && y0 > 3 && y0 < height - 3) {
-		 for (int x = x0 - 3; x <= x0 + 3; x++) {
-			 for (int y = y0-3 ; y <= y0 + 3; y++) {
-				 Pixel(x,y).Reset(r,g,b,1.0);
-			 }
-		 }
-	 }
-
-	if (x0 > x1) {
-		int x = y1; y1 = y0; y0 = x;
-    x = x1; x1 = x0; x0 = x;
-	}
-  int deltax = x1 - x0;
-  int deltay = y1 - y0;
-  float error = 0; 
-  float deltaerr = 0.0;
-	if(deltax!=0) deltaerr =fabs(float(float(deltay) / deltax));    // Assume deltax != 0 (line is not vertical),
-           // note that this division needs to be done in a way that preserves the fractional part
-  int y = y0;
-  for(int x = x0; x <= x1; x++) {
-		Pixel(x,y).Reset(r,g,b,1.0);
-    error = error + deltaerr;
-    if (error >= 0.5) {
-			 if (deltay > 0) y = y + 1;
-			 else y = y - 1;
-
-       error = error - 1.0;
-		 }
-	 }
-}
-
-bool R2Image::
-shouldInsertFeature(const std::vector<Feature>& features, const Feature& feature, const int minDistance) const {
-  // Features array should be sorted from largest to smallest
-
-  // Check to see if new feature smaller than any conflicting existing features
-  for (int i = 0; i < features.size(); i++) {
-    const Feature& existingFeature = features[i];
-
-    // if larger existing feature conflicts return
-    if ((feature.charScale == existingFeature.charScale) && feature.closeTo(existingFeature, minDistance * (feature.charScale - 1))) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool R2Image::
-inBounds(const Point p) const {
-  return inBounds(p.x, p.y);
-}
-
-bool R2Image::
-inBounds(const int x, const int y) const {
-  return (x >= 0) && (x < width) && (y >= 0) && (y < height);
-}
-
-
-
-void R2Image::
-findScaleInvariantHarrisFeaturePoints(std::vector<Feature>& features, R2Image& image) {
-  const int size = features.size();
-
-  // loop over sigma values, keeping track of largest harris values and associated sigmas
-  for (int s = 1; s < 10; s++) {
-    const double sigma = 2 * s;
-    R2Image harris(image);
-    harris.Harris(sigma, false);
-
-    for (int i = 0; i < size; i++) {
-      Feature& f = features[i];
-      const R2Pixel& p = harris.Pixel(f.x, f.y);
-
-      const double newL = p.Luminance();
-      const double oldL = f.pixel.Luminance();
-
-      if (newL > oldL) {
-        f.pixel = p;
-        f.charScale = sigma;
-       }     
-    }
-  }
-}
-
-void R2Image::
-findFeatures(double numFeatures, double minDistance, bool scaleInvariant, R2Image& image, std::vector<Feature>& selectedFeatures) {
-  std::vector<Feature> features;
-
-  const double sigma = 2.0;
-  R2Image harris(image);
-  harris.Harris(sigma, false);
-
-  // Grab all features above a certain luminance threshold (anything Harris identifies as as not a line or background)
-  for (int i = 0; i < image.Width(); i++) {
-    for (int j = 0; j < image.Height(); j++) {    
-      if (scaleInvariant || (harris.Pixel(i, j).Luminance() > 0.5)) {
-          features.push_back(Feature(harris.Pixel(i, j), i, j, sigma));
-      }     
-    }
-  }
-  // Finds characteristic scale for each point, sort them into feature scale groups (which are sorted from smallest to biggest)
-  if (scaleInvariant) {
-    findScaleInvariantHarrisFeaturePoints(features, image);
-  }
-
-  // Sort features from smallest to biggest
-  std::sort(features.begin(), features.end()); 
-  
-  
-  const int numFeaturesWanted = fmin(numFeatures, features.size());
-
-  // Take most prominent features that are far enough apart
-  for (int i = features.size() - 1; i > 0 ; i--) {
-    bool shouldInsert = shouldInsertFeature(selectedFeatures, features[i], minDistance);
-    if (shouldInsert) {
-      selectedFeatures.push_back(features[i]);
-    } 
-
-    if (selectedFeatures.size() >= numFeaturesWanted) {
-      break;
-    }
-  }
-}
-
-void R2Image::
-FeatureDetector(double numFeatures) {
-  // Find 
-  std::vector<Feature> selectedFeatures;
-  findFeatures(150, 10, false, *this, selectedFeatures);
-
-  // Mark selected features
-  for (int i = 0; i < selectedFeatures.size(); i++) {
-    //printf("scale: %f \n", selectedFeatures[i].charScale);
-    //drawSquare(selectedFeatures[i].x, selectedFeatures[i].y, 8 * selectedFeatures[i].charScale, 0, 1, 0);
-    drawCircle(selectedFeatures[i].x, selectedFeatures[i].y, 10 * selectedFeatures[i].charScale, 0, 1, 0); 
-  }
-}
-
-// x0 and y0 associated with this image, x1 and y1 associated with the passed in "otherImage"
-float R2Image::
-calculateSSD(const int x0, const int y0, const int x1, const int y1, R2Image& otherImage, const int ssdCompareReach) {
-  float sum = 0;
-  for (int i = -ssdCompareReach; i < ssdCompareReach + 1; i++) {
-    for (int j = -ssdCompareReach; j < ssdCompareReach + 1; j++) {
-      if (inBounds(x0 + i, y0 + j) && inBounds(x1 + i, y1 + j)) {
-          const R2Pixel& a = Pixel(x0 + i, y0 + j);
-          const R2Pixel& b = otherImage.Pixel(x1 + i, y1 + j);
-
-          const float rDif = a.Red() - b.Red();
-          const float gDif = a.Green() - b.Green();
-          const float bDif = a.Blue() - b.Blue();
-
-          sum += (rDif * rDif + gDif * gDif + bDif * bDif);
-        } else {
-          // account for out of bounds pixels by assigning them a difference of half maximum
-          sum += 3;
-        }    
-    }
-  }   
-    return sum;
-}
-
-FeatureMatch R2Image::
-findFeatureMatch(const Feature& feature, const int ssdCompareReach, const int searchWidthReach, const int searchHeightReach, R2Image& originalImage) {
-    const int maxPossibleSSD = (2 * ssdCompareReach + 1) * (2 * ssdCompareReach + 1) * 3;
-    FeatureMatch match(feature, maxPossibleSSD);
-
-    // Search all pixels in search area to find most similar feature
-    for (int i = fmax(0, feature.x - searchWidthReach); i < fmin(width, feature.x + searchWidthReach); i++) {
-      for (int j = fmax(0, feature.y - searchHeightReach); j < fmin(height, feature.y + searchHeightReach); j++) {       
-        
-        // compare SSD
-        const float ssd = calculateSSD(i, j, feature.x, feature.y, originalImage, ssdCompareReach);
-        if (ssd < match.ssd) {
-           match.secondBestSSD = match.ssd; 
-           match.ssd = ssd;
-           match.b = Feature(Pixel(i, j), i, j);
-        }
-      }
-    }
-    return match;
-}
-
 bool R2Image::
 similarMotion(const FeatureMatch& a, const FeatureMatch& b) const {
   const int threshold = 5;
@@ -798,222 +1050,6 @@ classifyMatchesWithRANSAC(std::vector<FeatureMatch>& matches) const {
 }
 
 void R2Image::
-findMatches(const int numFeatures, const int numMatches, R2Image& originalImage, std::vector<FeatureMatch>& matches) {
-  const int minFeatureDistance = 10;
-
-  // Find features in the other image
-  std::vector<Feature> selectedFeatures;
-  findFeatures(numFeatures, minFeatureDistance, false, originalImage, selectedFeatures);
-
-
-  // Search for matches
-  const double searchAreaPercentage = 0.2;
-  const int searchWidthReach = width * searchAreaPercentage / 2;
-  const int searchHeightReach = height * searchAreaPercentage / 2;
-  const int ssdCompareReach = 3;
-
-  for (int f = 0; f < selectedFeatures.size(); f++) {   
-      if (f >= numMatches) {
-       break;
-     }
-      FeatureMatch match = findFeatureMatch(selectedFeatures[f], ssdCompareReach, searchWidthReach, searchHeightReach, originalImage);
-      matches.push_back(match);
-  }
-}
-
-void R2Image::
-drawMatches(const std::vector<FeatureMatch> matches) {
-  for (int i = 0; i < matches.size(); i++) {
-    const FeatureMatch& match = matches[i];
-    const Feature& a = matches[i].a;
-    const Feature& b = matches[i].b;
-
-    if (match.verifiedMatch) {
-      // Green box on new point and line from old point
-      drawSquare(b.x, b.y, 5, 0, 1, 0);
-      drawLine(a.x, a.y, b.x, b.y, 0, 1, 0);
-    } else {
-      // Red box on original point
-      //drawSquare(a.x, a.y, 2, 1, 0, 0);
-
-      // red box on new point, and line from old point
-      drawSquare(b.x, b.y, 5, 1, 0, 0);
-      drawLine(a.x, a.y, b.x, b.y, 1, 0, 0);
-    }
-  }
-}
-
-void R2Image::
-TrackFeatures(int numFeatures, R2Image& originalImage) {
-  // Search for matches (a in original image, b in this one)
-  std::vector<FeatureMatch> matches;
-  findMatches(numFeatures, numFeatures, originalImage, matches);
-
-  classifyMatchesWithDltRANSAC(matches);
-  drawMatches(matches);
-}
-
-void R2Image::
-flipMatchDirections(std::vector<FeatureMatch>& matches) const {
-  for (int i = 0; i < matches.size(); i++) {
-    matches[i].flipDirection();
-  }
-}
-
-void R2Image::
-MatchImage(R2Image& originalImage) {
-  const int numFeatures = 150;
-
-  // Search for matches (a in original image, b in this one)
-  std::vector<FeatureMatch> matches;
-  findMatches(numFeatures, numFeatures, originalImage, matches);
-
-  // classify matches as good or bad
-  classifyMatchesWithDltRANSAC(matches);
-
-  // separate out good matches
-  std::vector<FeatureMatch> goodMatches;
-  for (int i = 0; i < matches.size(); i++) {
-     if (matches[i].verifiedMatch) {
-      goodMatches.push_back(matches[i]);
-    }
-  }
-
-  // Compute homography matrix (this will be the matrix from original Image to this image as that is direction of feature matches)
-  std::vector<double> homographyMatrix;
-  computeHomographyMatrixWithDLT(goodMatches, homographyMatrix);
-  
-  transformImage(homographyMatrix);
-  //blendWithImage(originalImage);
-}
-
-bool R2Image:: 
-contains(const int number, const std::vector<int>& vector) const {
-  for (int i = 0; i < vector.size(); i++) {
-    if(vector[i] == number) return true;
-  }
-  return false;
-}
-
-void R2Image::
-classifyMatchesWithDltRANSAC(std::vector<FeatureMatch>& matches) const {
-  srand (time(NULL));
-
-  std::vector<double> bestHomographyMatrix;
-  int numGoodMatches = 0;
-
-  const int numTrials = 1000;
-  for (int i = 0; i < numTrials; i++) {
-    int tempNumGoodMatches = 0;
-    std::vector<double> tempHomographyMatrix;
-
-    // Pick 4 matches randomly
-    std::vector<FeatureMatch> correspondences;
-    std::vector<int> selectedMatches;
-    for (int j = 0; j < 4; j++) {
-      int randMatch = rand() % matches.size();
-      while (contains(randMatch, selectedMatches)) {
-        randMatch = rand() % matches.size();
-      }
-      selectedMatches.push_back(randMatch);
-      correspondences.push_back(matches[randMatch]);
-    }
-
-    // calculate tempHomographyMatrix with dlt
-    computeHomographyMatrixWithDLT(correspondences, tempHomographyMatrix);
-
-    // Find how many other vectors have similar motion vectors (keep track of largest set)
-    for (int j = 0; j < matches.size(); j++) {
-      const FeatureMatch& match = matches[j];
-      const bool goodTransform = checkHomographySimilarity(match, tempHomographyMatrix);
-
-      tempNumGoodMatches += (goodTransform ? 1 : 0);
-    }
-
-    if (tempNumGoodMatches > numGoodMatches) {
-        numGoodMatches = tempNumGoodMatches;
-        bestHomographyMatrix = tempHomographyMatrix;
-    }
-  }
-
-  // Copy info about biggest set of good matches over to actual matches
-  for (int a = 0; a < matches.size(); a++) {
-    matches[a].verifiedMatch = checkHomographySimilarity(matches[a], bestHomographyMatrix);
-  }
-}   
-
-
-bool R2Image::
-checkHomographySimilarity(const FeatureMatch& match, const std::vector<double>& homographyMatrix) const {
-   const Feature& a = match.a;
-   const Feature& real_b = match.b;
-
-   Point calculated_b = transformPoint(a.x, a.y, homographyMatrix);
-
-   const int threshold = 5;
-   const int xDiff = std::abs(real_b.x - calculated_b.x);
-   const int yDiff = std::abs(real_b.y - calculated_b.y);
-
-  return (xDiff < threshold) && (yDiff < threshold);
-}
-
-Point R2Image::
-transformPoint(const int x0, const int y0, const std::vector<double>& homographyMatrix) const {
-  double x = homographyMatrix[0] * x0 + homographyMatrix[1] * y0 + homographyMatrix[2];
-  double y = homographyMatrix[3] * x0 + homographyMatrix[4] * y0 + homographyMatrix[5];
-  const double w = homographyMatrix[6] * x0 + homographyMatrix[7] * y0 + homographyMatrix[8];
-
-  //printf("x: %f, y: %f, w: %f \n", x, y, w);
-
-  // normalize with w
-  x /= w;
-  y /= w;
-
-  return Point(x, y);
-}
-
-void R2Image::
-transformImage(const std::vector<double>& homographyMatrix) {
-  R2Image transformedImage(width, height);
-
-  for (int i = 0; i < width; i++) {
-    for (int j = 0;  j < height; j++) {
-      const Point p = transformPoint(i, j, homographyMatrix);
-      const int x0 = p.x;
-      const int y0 = p.y;
-      
-      const int x1 = x0 + 1;
-      const int y1 = y0 + 1;
-
-      if (inBounds(x0, y0) && inBounds(x1, y1)) {
-        const double alphaX = p.x - x0;
-        const double alphaY = p.y - y0;
-
-        R2Pixel upperHalf = (1 - alphaX) * Pixel(x0, y0) + alphaX * Pixel(x1, y0);
-        R2Pixel lowerHalf = (1 - alphaX) * Pixel(x0, y1) + alphaX * Pixel(x1, y1);
-
-        transformedImage.Pixel(i, j) = (1 - alphaY) * upperHalf + alphaY * lowerHalf;
-      } else if (inBounds(x0, y0)) {
-        transformedImage.Pixel(i, j) = Pixel(x0, y0);
-      } else if (inBounds(x1,y1)) {
-        transformedImage.Pixel(i, j) = Pixel(x1, y1);
-      }
-    }
-  }
-
-  *this = transformedImage;
-}
-
-void R2Image::
-blendWithImage(R2Image& otherImage) {
-  for (int i = 0; i < width; i++) {
-    for (int j = 0; j < height; j++) {
-      Pixel(i,j) = 0.5 * Pixel(i, j) + 0.5 * otherImage.Pixel(i, j);
-    }
-  }
-}
-
-void R2Image::
 testDLT() {
   std::vector<FeatureMatch> hy;
   std::vector<double> h;
@@ -1023,96 +1059,7 @@ testDLT() {
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
-void R2Image::
-computeHomographyMatrixWithDLT(const std::vector<FeatureMatch>& matches, std::vector<double>& homographyMatrix) const {
-  const bool shouldPrint = false;
 
-  const int width = 9;
-  int height = matches.size() * 2;
-
-  // Fill line equations matrix from given point correspondences 
-  double** lineEquations = dmatrix(1, height, 1, width);
-  if (shouldPrint) { printf("Points: \n"); }
-  // Construct matrix A (lineEquations)
-  for (int i = 0; i < height; i += 2) {
-     const int match = i / 2;
-     const Feature& fa = matches[match].a;
-     const Feature& fb = matches[match].b;
-
-     // Not sure if it matters if are doubles so convert to points for now to ensure doubles (easy to change)
-     const Point a(fa.x, fa.y);//a(matchesA[match][0], matchesA[match][1]); //a(fb.x, fb.y);
-     const Point b(fb.x, fb.y);//b(matchesA[match][2], matchesA[match][3]);  //b(fa.x, fa.y);
-
-     if (shouldPrint) { printf("(%f, %f) -> (%f, %f) \n", a.x, a.y, b.x, b.y); }
-
-     const double row1[9] = { 0, 0, 0, -a.x, -a.y, -1, b.y * a.x, b.y * a.y, b.y };
-     const double row2[9] = { a.x, a.y, 1, 0, 0, 0, -a.x * b.x, -b.x * a.y, -b.x };
-
-     for (int j = 0; j < 9; j++) {
-        lineEquations[i + 1][j + 1] = row1[j];
-        lineEquations[i + 2][j + 1] = row2[j];
-     }
-  }
-
-  if (shouldPrint) {
-  printf("\n A: \n");
-  for (int i = 0; i < height; i++) {
-    for (int j = 0; j < width; j++) {
-      printf("%f ", lineEquations[i+1][j+1]);
-    }
-    printf("\n");
-  }
-  }
-  
-  // compute the SVD
-  double** nullspaceMatrix = dmatrix(1, 10, 1, 10);
-  const int numSingularValues = 9;
-	double singularValues[numSingularValues + 1]; // 1..numSingularValues
-   
-	svdcmp(lineEquations, height, width, singularValues, nullspaceMatrix);
-
-  if (shouldPrint) {
-    printf("\n Singular Values: \n");
-    for (int i = 1; i <= numSingularValues; i++) {
-       printf("%f ", singularValues[i]);
-    }
-    printf("\n");
-
-     printf("\n Nullspace Matrix: \n");
-    for (int i = 0; i < 10; i++) {
-      for (int j = 0; j < 10; j++) {
-        printf("%f ", nullspaceMatrix[i + 1][j + 1]);
-      }
-      printf("\n");
-    }
-  }
-
-  // Find row of smallest singular value 
-  int solutionCol = 0;
-  for (int i = 1; i < numSingularValues; i++) {
-    if (singularValues[i + 1] < singularValues[solutionCol + 1]) {
-      solutionCol = i;
-    }
-  }
-
-  // Map solution column to 3x3 solution matrix
-  //double H[3][3];
-  for (int i = 0; i < 9; i++) {
-    homographyMatrix.push_back(nullspaceMatrix[i + 1][solutionCol + 1]);
-
-
-    // const int row = i / 3;
-    // homographyMatrix[row][col] = nullspaceMatrix[i + 1][solutionCol + 1];
-  }
-
-  if (shouldPrint) {
-      printf("\n H: \n");
-      for (int i = 0; i < 3; i++) {
-        printf("%f, %f, %f \n", homographyMatrix[3 * i], homographyMatrix[3 * i + 1], homographyMatrix[3 * i + 2]);
-      }
-  }
-  
-}
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
@@ -1507,7 +1454,6 @@ WriteBMP(const char *filename) const
 }
 
 
-
 ////////////////////////////////////////////////////////////////////////
 // PPM I/O
 ////////////////////////////////////////////////////////////////////////
@@ -1673,6 +1619,26 @@ WritePPM(const char *filename, int ascii) const
 
   // Return success
   return 1;
+}
+
+
+void R2Image::
+LoG(void)
+{
+  // Apply the LoG oprator to the image
+
+  // FILL IN IMPLEMENTATION HERE (REMOVE PRINT STATEMENT WHEN DONE)
+  fprintf(stderr, "LoG() not implemented\n");
+}
+
+void R2Image::
+ChangeSaturation(double factor)
+{
+  // Changes the saturation of an image
+  // Find a formula that changes the saturation without affecting the image brightness
+
+  // FILL IN IMPLEMENTATION HERE (REMOVE PRINT STATEMENT WHEN DONE)
+  fprintf(stderr, "ChangeSaturation(%g) not implemented\n", factor);
 }
 
 
