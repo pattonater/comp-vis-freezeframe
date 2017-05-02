@@ -13,12 +13,34 @@
 // #include <stdlib.h>     /* srand, rand */
 // #include <time.h>       /* time */
 
+
 ///////////////////////
 // Macros (functionally)
 //////////////////////
 bool R2Image:: inBounds(const Point p) const { return inBounds(p.x, p.y); }
 bool R2Image:: inBounds(const int x, const int y) const { return (x >= 0) && (x < width) && (y >= 0) && (y < height); }
 
+
+///////////////////////
+// Freeze Frame
+//////////////////////
+void R2Image::
+identifyCorners(const std::vector<R2Image>& corners, std::vector<Point>& cornerCoords) {
+  // Read in 4 corner images
+  // find best fit in image
+  // record coordinates, output coordinates
+  // draw uniquely-colored Xs on corners
+
+
+}
+
+// void R2Image::
+// restFreeze(const std::vector<R2Image>& corners) {
+//   // read in previous coords
+//   // search window for corner images
+//   // find best fit, update coords
+//   // draw uniquely-colored Xs on corners
+// }
 
 
 ///////////////////////

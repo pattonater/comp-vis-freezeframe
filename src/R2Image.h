@@ -149,7 +149,6 @@ class R2Image {
   void Sharpen(void);
   void HighPass(double sigma, double contrast);
 
-
   // Feature helpers
   bool shouldInsertFeature(const std::vector<Feature>& features, const Feature& feature, const int minDistance) const;
   void findScaleInvariantHarrisFeaturePoints(std::vector<Feature>& features, R2Image& image);
@@ -181,6 +180,9 @@ class R2Image {
   void drawSquare(const int x, const int y, const int reach, const float r, const float g, const float b);
   void drawLine(int x0, int y0, int x1, int y1, const float r, const float g, const float b);
   void drawCircle(const int xCenter, const int yCenter, const int radius, const float r, const float g, const float b);
+
+  // Freeze Frame
+  void identifyCorners(const std::vector<R2Image>& corners, std::vector<Point>& cornerCoords);
 
   // further operations
   void blendOtherImageTranslated(R2Image * otherImage);
