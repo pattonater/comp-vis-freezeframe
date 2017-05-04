@@ -133,5 +133,5 @@ popd
 
 
 src/imgpro input/screen_corners screen_corners output/screen_corners \
-
+      -harryPotterize
 

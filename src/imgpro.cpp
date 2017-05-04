@@ -240,39 +240,35 @@ void processImage(int argc, char **argv, char *input_image_name) {
 }
 
 
+////////////////////////////
+// Image Sequence Processing
+////////////////////////////
 
 bool checkFileExistance(const std::string& file_name) {
   struct stat buffer;
   return (stat(file_name.c_str(), &buffer) == 0);
-
-  // slower version (what he does)
-  // if (FILE *file = fopen(file_name.c_str(), "rb")) {
-  //       fclose(file);
-  //       return true;
-  //   } else {
-  //       return false;
-  //   }   
-
 }
 
 
-void grabImageNames(std::vector<std::string>& imageNames, char *input_folder_name, char *image_base_name) {
+void grabImageNames(std::vector<std::string>& inputImageNames, std::vector<std::string>& outputImageNames, char *input_folder_name, char *image_base_name, char *output_folder_name) {
   const int maxNumberImages = 50;
 
-  //printf("%s \n", input_folder_name);
-  //printf("%s \n", image_base_name);
-  const std::string imageNameBase = std::string(input_folder_name) + "/" + std::string(image_base_name);
-  //printf("%s \n", imageNameBase.c_str());
+  const std::string inputNameBase = std::string(input_folder_name) + "/" + std::string(image_base_name);
+  const std::string outputNameBase = std::string(output_folder_name) + "/" + std::string(image_base_name);
 
 
   for( int i = 1; i < maxNumberImages; i++) {
-    std::string imageName = imageNameBase + std::to_string(i) + ".jpg";
+    const std::string inputName = inputNameBase + std::to_string(i) + ".jpg";
 
-    bool validFileName = checkFileExistance(imageName);
+    bool validFileName = checkFileExistance(inputName);
     if (!validFileName) { break; } 
 
-    printf("%s \n", imageName.c_str());
-    imageNames.push_back(imageName);
+    //printf("%s \n", inputName.c_str());
+    inputImageNames.push_back(inputName);
+
+    std::string outputName = outputNameBase + std::to_string(i) + ".jpg";
+    //printf("%s \n", outputName.c_str());
+    outputImageNames.push_back(outputName);
   }
 }
 
@@ -283,49 +279,47 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
 
 
   // extract image names
-  std::vector<std::string> imageNames;
-  grabImageNames(imageNames, input_folder_name, image_base_name);
+  std::vector<std::string> inputImageNames;
+  std::vector<std::string> outputImageNames;
+  grabImageNames(inputImageNames, outputImageNames, input_folder_name, image_base_name, output_folder_name);
+  assert(inputImageNames.size() == outputImageNames.size());
 
   // break if no images
-  if (imageNames.size() <= 0) return;
+  if (inputImageNames.size() <= 0) return;
 
-  // allocate image 
-  R2Image *image = new R2Image();
-  if (!image) {
-    fprintf(stderr, "Unable to allocate image\n");
-    exit(-1);
-  }
-
-  // Read input image from first image in folder 
-  if (!image->Read(imageNames[0].c_str())) {
-    fprintf(stderr, "Unable to read image from %s\n", imageNames[0].c_str());
-    exit(-1);
-  }
-
+  printf("Number of images: %lu \n", inputImageNames.size());
 
   // Parse arguments and perform operations
   while (argc > 0) {
     if (!strcmp(*argv, "-harryPotterize")) {
-      CheckOption(*argv, argc, 2);
+      CheckOption(*argv, argc, 1);
+      argv += 1, argc -= 1;
 
       // iterate through image frames
-      for (int i = 0; i < imageNames.size(); i++) {
-        const char* file_name = imageNames[i].c_str();
-        R2Image* image_frame = new R2Image(file_name);
+      for (int i = 0; i < inputImageNames.size(); i++) {
 
+        // allocate image frame
+        const char* file_name = inputImageNames[i].c_str();
+        R2Image* image_frame = new R2Image(file_name);
+        if (!image_frame) {
+          fprintf(stderr, "Unable to allocate image\n");
+          exit(-1);
+        }
+
+        // Find trackers on image
         std::vector<R2Image> corners;
         std::vector<Point> cornerCoords;
         image_frame->identifyCorners(corners, cornerCoords);
 
-
-        // Write output image
-        // if (!image->Write(output_image_name)) {
-        //   fprintf(stderr, "Unable to read image from %s\n", output_image_name);
-        //   exit(-1);
-        // } 
-
+       // Write output image
+        if (!image_frame->Write(outputImageNames[i].c_str())) {
+          fprintf(stderr, "Unable to read image from %s\n", outputImageNames[i].c_str());
+          delete image_frame;
+          exit(-1);
+        } 
+        
+        // clean up memory
         delete image_frame;
-      
       }
     }
     else {
@@ -333,14 +327,16 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
       fprintf(stderr, "image: invalid option: %s\n", *argv);
       ShowUsage();
     }
-
-
-    // Delete image
-    delete image;
-
   }
 }
 
+
+
+
+
+//////////////////
+/// Main 
+/////////////////
 
 int
 main(int argc, char **argv)
