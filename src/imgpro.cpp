@@ -308,6 +308,7 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
     if (!strcmp(*argv, "-harryPotterize")) {
       CheckOption(*argv, argc, 2);
 
+      // iterate through image frames
       for (int i = 0; i < imageNames.size(); i++) {
         const char* file_name = imageNames[i].c_str();
         R2Image* image_frame = new R2Image(file_name);
