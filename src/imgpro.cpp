@@ -312,24 +312,21 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
       for (int i = 0; i < imageNames.size(); i++) {
         const char* file_name = imageNames[i].c_str();
         R2Image* image_frame = new R2Image(file_name);
+
+        std::vector<R2Image> corners;
+        std::vector<Point> cornerCoords;
+        image_frame->identifyCorners(corners, cornerCoords);
+
+
+        // Write output image
+        // if (!image->Write(output_image_name)) {
+        //   fprintf(stderr, "Unable to read image from %s\n", output_image_name);
+        //   exit(-1);
+        // } 
+
+        delete image_frame;
+      
       }
-
-      // image->firstFrameProcessing();
-
-      // for (int i = 0 ; i < 5; i++) {
-      //   std::string number = "00000";
-      //   number += std::to_string(i);
-      //   std::string actFileName = "~fefs" + number.substr(0, 7) + ".jpg";
-      //   R2Image* other_image = new R2Image(actFileName);
-      //   image->frameProcessing(i, other_image);
-
-      //  // Write output image
-      //   if (!image->Write(output_image_name)) {
-      //     fprintf(stderr, "Unable to read image from %s\n", output_image_name);
-      //     exit(-1);
-      //   } 
-      //   delete other_image
-      // }
     }
     else {
       // Unrecognized program argument
