@@ -119,13 +119,19 @@ popd
 # src/imgpro input/e_sitting1.jpg output/e_sitting_matched_old.jpg \
 #     -matchHomography input/e_sitting2.jpg
 
-src/imgpro input/d_face1.jpg output/d_face_matched_old.jpg \
-    -matchHomography input/d_face2.jpg
-
 # src/imgpro input/c_bridge1.jpg output/c_bridge_matched_old.jpg \
 #     -matchHomography input/c_bridge2.jpg
 
 # src/imgpro input/dolac_market1.jpg output/dolac_market_matched_old.jpg \
 #     -matchHomography input/dolac_market2.jpg
+
+
+# WORKING CALLS:
+
+# src/imgpro input/d_face1.jpg output/d_face_matched_old.jpg \
+#     -matchHomography input/d_face2.jpg
+
+
+src/imgpro input/screen_corners screen_corners output/screen_corners \
 
 
