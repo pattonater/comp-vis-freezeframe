@@ -277,7 +277,6 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
   char *image_base_name = *argv; argv++, argc--;
   char *output_folder_name = *argv; argv++, argc--;
 
-
   // extract image names
   std::vector<std::string> inputImageNames;
   std::vector<std::string> outputImageNames;
@@ -295,6 +294,10 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
       CheckOption(*argv, argc, 1);
       argv += 1, argc -= 1;
 
+      // Grab corners
+      std::vector<R2Image> corners;
+      std::vector<Point> cornerCoords;
+
       // iterate through image frames
       for (int i = 0; i < inputImageNames.size(); i++) {
 
@@ -307,8 +310,6 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
         }
 
         // Find trackers on image
-        std::vector<R2Image> corners;
-        std::vector<Point> cornerCoords;
         image_frame->identifyCorners(corners, cornerCoords);
 
        // Write output image

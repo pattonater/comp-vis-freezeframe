@@ -31,16 +31,45 @@ identifyCorners(const std::vector<R2Image>& corners, std::vector<Point>& cornerC
   // record coordinates, output coordinates
   // draw uniquely-colored Xs on corners
 
+  // look for each corner
+  for (size_t i = 0; i < 4; ++i) {
 
+  }
 }
 
-// void R2Image::
-// restFreeze(const std::vector<R2Image>& corners) {
-//   // read in previous coords
-//   // search window for corner images
-//   // find best fit, update coords
-//   // draw uniquely-colored Xs on corners
-// }
+Point R2Image::
+findImageMatch(const Point& searchOrigin, const float searchWindowPercentage, R2Image& comparisonImage) {
+  // Can just use findFeatureMatch, where feature is center of comparison image and ssdSearchRadius is the radius of the comparison image
+  const Feature comparisonImageCenter(comparisonImage.Height() / 2, comparisonImage.Width() / 2);
+  const int ssdSearchRadius = fmax(comparisonImage.Width(), comparisonImage.Height()) / 2;
+
+  // find best match for comparison image (can combine these two lines but figured would be confusing)
+  FeatureMatch match = findFeatureMatch(comparisonImageCenter, comparisonImage, searchOrigin, searchWindowPercentage, ssdSearchRadius);
+  Feature matchCenter = match.b;
+
+  return Point(matchCenter.x, matchCenter.y);
+
+
+
+  // // calculate search offsets
+  // const int widthBounds = comparisonImage.Width() / 2 + 1;
+  // const int heightBounds = comparisonImage.Height() / 2 + 1;
+
+  // // Search bounds: improve these later using search origin and search window
+  // const int xMin = widthBounds;
+  // const int xMax = width - widthBounds;
+  // const int yMin = heightBounds;
+  // const int yMax = height - heightBounds;
+
+
+  // // Iterate through points in search box
+  // for (int x = xMin; x < xMax; ++x) {
+  //   for (int y = yMin; y < yMax; ++y) {
+      
+
+  //   }
+  // }
+}
 
 
 ///////////////////////
@@ -112,35 +141,44 @@ findMatches(const int numFeatures, const int numMatches, R2Image& originalImage,
   findFeatures(numFeatures, minFeatureDistance, false, originalImage, selectedFeatures);
 
   // Search for matches
-  const double searchAreaPercentage = 0.2;
-  const int searchWidthReach = width * searchAreaPercentage / 2;
-  const int searchHeightReach = height * searchAreaPercentage / 2;
-  const int ssdCompareReach = 3;
+  const double featureSearchAreaPercentage = 0.3;
+  const int ssdSearchRadius = 3;
 
   for (int f = 0; f < selectedFeatures.size(); f++) {   
       if (f >= numMatches) {
        break;
      }
-      FeatureMatch match = findFeatureMatch(selectedFeatures[f], ssdCompareReach, searchWidthReach, searchHeightReach, originalImage);
+      FeatureMatch match = findFeatureMatchConsecutiveImages(selectedFeatures[f], originalImage, featureSearchAreaPercentage, ssdSearchRadius);
       matches.push_back(match);
   }
 }
 
 FeatureMatch R2Image::
-findFeatureMatch(const Feature& feature, const int ssdCompareReach, const int searchWidthReach, const int searchHeightReach, R2Image& originalImage) {
-    const int maxPossibleSSD = (2 * ssdCompareReach + 1) * (2 * ssdCompareReach + 1) * 3;
+findFeatureMatchConsecutiveImages(const Feature& feature, R2Image& featureImage, const float searchAreaPercentage, const int ssdSearchRadius) {
+  const Point searchOrigin(feature.x, feature.y);
+  return findFeatureMatch(feature, featureImage, searchOrigin, searchAreaPercentage, ssdSearchRadius);
+}
+
+// Takes in feature from originalImage, looks for it in this image with ssd
+FeatureMatch R2Image::
+findFeatureMatch(const Feature& feature, R2Image& featureImage, const Point searchOrigin, const float searchAreaPercentage, const int ssdSearchRadius) {
+    // Calculate search radii
+    const int searchWidthRadius = width * searchAreaPercentage / 2;
+    const int searchHeightRadius = height * searchAreaPercentage / 2;
+
+    // initialize match with highest possible SSD
+    const int maxPossibleSSD = (2 * ssdSearchRadius + 1) * (2 * ssdSearchRadius + 1) * 3;
     FeatureMatch match(feature, maxPossibleSSD);
 
     // Search all pixels in search area to find most similar feature
-    for (int i = fmax(0, feature.x - searchWidthReach); i < fmin(width, feature.x + searchWidthReach); i++) {
-      for (int j = fmax(0, feature.y - searchHeightReach); j < fmin(height, feature.y + searchHeightReach); j++) {       
+    for (int x = fmax(0, searchOrigin.x - searchWidthRadius); x < fmin(width, searchOrigin.x + searchWidthRadius); x++) {
+      for (int y = fmax(0, searchOrigin.y - searchHeightRadius); y < fmin(height, searchOrigin.y + searchHeightRadius); y++) {       
         
-        // compare SSD
-        const float ssd = calculateSSD(i, j, feature.x, feature.y, originalImage, ssdCompareReach);
+        // calculate ssd for possible match, save it if it is the best yet
+        const float ssd = calculateSSD(x, y, feature.x, feature.y, featureImage, ssdSearchRadius);
         if (ssd < match.ssd) {
-           match.secondBestSSD = match.ssd; 
            match.ssd = ssd;
-           match.b = Feature(Pixel(i, j), i, j);
+           match.b = Feature(Pixel(x, y), x, y);
         }
       }
     }
@@ -149,11 +187,12 @@ findFeatureMatch(const Feature& feature, const int ssdCompareReach, const int se
 
 // x0 and y0 associated with this image, x1 and y1 associated with the passed in "otherImage"
 float R2Image::
-calculateSSD(const int x0, const int y0, const int x1, const int y1, R2Image& otherImage, const int ssdCompareReach) {
+calculateSSD(const int x0, const int y0, const int x1, const int y1, R2Image& otherImage, const int ssdSearchRadius) {
   float sum = 0;
-  for (int i = -ssdCompareReach; i < ssdCompareReach + 1; i++) {
-    for (int j = -ssdCompareReach; j < ssdCompareReach + 1; j++) {
-      if (inBounds(x0 + i, y0 + j) && inBounds(x1 + i, y1 + j)) {
+  for (int i = -ssdSearchRadius; i < ssdSearchRadius + 1; i++) {
+    for (int j = -ssdSearchRadius; j < ssdSearchRadius + 1; j++) {
+
+      if (inBounds(x0 + i, y0 + j) && otherImage.inBounds(x1 + i, y1 + j)) {
           const R2Pixel& a = Pixel(x0 + i, y0 + j);
           const R2Pixel& b = otherImage.Pixel(x1 + i, y1 + j);
 

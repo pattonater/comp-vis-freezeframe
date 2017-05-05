@@ -46,6 +46,13 @@ struct Feature {
 
   Feature() {}
 
+  Feature(int xi, int yi) {
+    charScale = 1.0;
+    pixel = R2Pixel(0,0,0,0);
+    x = xi;
+    y = yi;
+  }
+
   Feature(R2Pixel p, int xi, int yi) {
     charScale = 1.0;
     pixel = p;
@@ -78,7 +85,6 @@ struct FeatureMatch {
   Feature a;
   Feature b;
   float ssd;
-  float secondBestSSD;
 
   bool verifiedMatch;
 
@@ -154,7 +160,8 @@ class R2Image {
   void findScaleInvariantHarrisFeaturePoints(std::vector<Feature>& features, R2Image& image);
   void calculateCharacteristicScales(std::vector<Feature>& features, R2Image& image);
   void findFeatures(double numFeatures, double minDistance, bool scaleInvariant, R2Image& image, std::vector<Feature>& selectedFeatures);
-  FeatureMatch findFeatureMatch(const Feature& feature, const int ssdCompareReach, const int searchWidthReach, const int searchHeightReach, R2Image& originalImage);
+  FeatureMatch findFeatureMatch(const Feature& feature, R2Image& featureImage, const Point searchOrigin, const float searchAreaPercentage, const int ssdSearchRadius);
+  FeatureMatch findFeatureMatchConsecutiveImages(const Feature& feature, R2Image& featureImage, const float searchAreaPercentage, const int ssdSearchRadius);
   float calculateSSD(const int x0, const int y0, const int x1, const int y1, R2Image& originalImage, const int ssdCompareReach);
   void classifyMatchesWithRANSAC(std::vector<FeatureMatch>& matches) const;
   bool similarMotion(const FeatureMatch& a, const FeatureMatch& b) const;
@@ -183,6 +190,7 @@ class R2Image {
 
   // Freeze Frame
   void identifyCorners(const std::vector<R2Image>& corners, std::vector<Point>& cornerCoords);
+  Point findImageMatch(const Point& searchOrigin, const float searchWindowPercentage, R2Image& comparisonImage);
 
   // further operations
   void blendOtherImageTranslated(R2Image * otherImage);
