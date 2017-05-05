@@ -135,6 +135,5 @@ popd
 #     -trackfeatures 150 input/d_face2.jpg
 
 
-src/imgpro input/screen_corners screen_corners output/screen_corners \
-      -harryPotterize
+src/imgpro input/screen_corners screen_corners output/screen_corners input/corners marker -harryPotterize
 

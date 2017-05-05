@@ -259,6 +259,29 @@ bool checkFileExistance(const std::string& file_name) {
 }
 
 
+// overloaded version. Finds images in a single file given a base name structure
+void grabImageNames(std::vector<std::string>& imageNames, char *folder_name, char *base_name) {
+  // printf("grabbing marker image names...\n");
+  printf("\n");
+  const int maxNumberImages = 50;
+
+  const std::string nameBase = std::string(folder_name) + "/" + std::string(base_name);
+  
+  for( int i = 1; i < maxNumberImages; i++) {
+    const std::string name = nameBase + std::to_string(i) + ".jpg";
+
+    bool validFileName = checkFileExistance(name);
+    // exits loop for first invalid-numbered file
+    if (!validFileName) { break; }
+
+    //printf("%s \n", inputName.c_str());
+    imageNames.push_back(name);
+
+  }
+  // printf("marker names grabbed.\n");
+}
+
+
 void grabImageNames(std::vector<std::string>& inputImageNames, std::vector<std::string>& outputImageNames, char *input_folder_name, char *image_base_name, char *output_folder_name) {
   const int maxNumberImages = 50;
 
@@ -282,13 +305,22 @@ void grabImageNames(std::vector<std::string>& inputImageNames, std::vector<std::
 }
 
 void processImageSequence(int argc, char **argv, char *input_folder_name) {
+  
+  // printf("processing image sequence...\n");
   char *image_base_name = *argv; argv++, argc--;
   char *output_folder_name = *argv; argv++, argc--;
+  char *marker_folder_name = *argv; argv++, argc--;
+  char *marker_base_name = *argv; argv++, argc--;
+  // printf("pulled out strings from input.\n");
 
   // extract image names
   std::vector<std::string> inputImageNames;
   std::vector<std::string> outputImageNames;
+  std::vector<std::string> markerImageNames;
+
   grabImageNames(inputImageNames, outputImageNames, input_folder_name, image_base_name, output_folder_name);
+  grabImageNames(markerImageNames, marker_folder_name, marker_base_name);
+
   assert(inputImageNames.size() == outputImageNames.size());
 
   // break if no images
@@ -302,9 +334,23 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
       CheckOption(*argv, argc, 1);
       argv += 1, argc -= 1;
 
+      // printf("grabbing corners images...\n");
       // Grab corners
       std::vector<R2Image> markerImages;
       std::vector<Point> cornerCoords;
+
+
+
+      // import marker images
+      for (size_t i = 0; i < markerImageNames.size(); ++i) {
+        printf(markerImageNames[i].c_str()); printf("\n");
+        R2Image* marker = new R2Image(markerImageNames[i].c_str());
+        verifyImageAllocation(marker);
+        markerImages.push_back(*marker);
+      }
+
+      assert(markerImages.size() == 4);
+      // printf("marker images grabbed.\n");      
 
       // iterate through image frames
       for (int i = 0; i < inputImageNames.size(); i++) {
@@ -315,7 +361,8 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
 
         // Find trackers on image
         //dont try this until have succesfully imported 
-        //image_frame->identifyCorners(markerImages, cornerCoords);
+        printf("Identifying corners on image %d\n", i);
+        image_frame->identifyCorners(markerImages, cornerCoords);
 
        // Write output image
         if (!image_frame->Write(outputImageNames[i].c_str())) {
