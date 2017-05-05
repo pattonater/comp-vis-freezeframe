@@ -155,7 +155,7 @@ class R2Image {
   void Harris(double sigma, bool clamped);
   void FeatureDetector(double numFeatures);
   void TrackFeatures(int numFeatures, R2Image& originalImage);
-  void MatchImage(R2Image& originalImage);
+  void MatchHomography(R2Image& originalImage);
   void Sharpen(void);
   void HighPass(double sigma, double contrast);
 

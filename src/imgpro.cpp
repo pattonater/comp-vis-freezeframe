@@ -126,18 +126,34 @@ CheckOption(char *option, int argc, int minargc)
 //   return 1;
 // }
 
-
 ////////////////////////////
-// Single Image Processing
+// Image Processing Helpers
 ////////////////////////////
-
 void verifyImageAllocation(R2Image *image) {
   if (!image) {
     fprintf(stderr, "Unable to allocate image\n");
+    delete image;
     exit(-1);
   }
 }
 
+void writeImage(R2Image* image, const char* name) {
+  if (!image->Write(name)) {
+     fprintf(stderr, "Unable to read image from %s\n", name);
+     delete image;
+     exit(-1);
+  } 
+}
+
+bool checkFileExistance(const std::string& file_name) {
+  struct stat buffer;
+  return (stat(file_name.c_str(), &buffer) == 0);
+}
+
+
+////////////////////////////
+// Single Image Processing
+////////////////////////////
 void processImage(int argc, char **argv, char *input_image_name) {
   char *output_image_name = *argv; argv++, argc--;
 
@@ -229,7 +245,7 @@ void processImage(int argc, char **argv, char *input_image_name) {
       R2Image* other_image = new R2Image(argv[1]);
       printf("%s \n", argv[1]);
       argv += 2, argc -= 2;
-      image->MatchImage(*other_image);
+      image->MatchHomography(*other_image);
       delete other_image;
     } else {
       // Unrecognized program argument
@@ -239,10 +255,7 @@ void processImage(int argc, char **argv, char *input_image_name) {
   }
 
   // Write output image
-  if (!image->Write(output_image_name)) {
-    fprintf(stderr, "Unable to read image from %s\n", output_image_name);
-    exit(-1);
-  }
+  writeImage(image, output_image_name);
 
   // Delete image
   delete image;
@@ -252,13 +265,6 @@ void processImage(int argc, char **argv, char *input_image_name) {
 ////////////////////////////
 // Image Sequence Processing
 ////////////////////////////
-
-bool checkFileExistance(const std::string& file_name) {
-  struct stat buffer;
-  return (stat(file_name.c_str(), &buffer) == 0);
-}
-
-
 void grabImageNames(std::vector<std::string>& inputImageNames, std::vector<std::string>& outputImageNames, char *input_folder_name, char *image_base_name, char *output_folder_name) {
   const int maxNumberImages = 50;
 
@@ -270,13 +276,13 @@ void grabImageNames(std::vector<std::string>& inputImageNames, std::vector<std::
     const std::string inputName = inputNameBase + std::to_string(i) + ".jpg";
 
     bool validFileName = checkFileExistance(inputName);
+
+    // this is how you exit the loop (once you get to an invalid file name)
     if (!validFileName) { break; } 
 
-    //printf("%s \n", inputName.c_str());
-    inputImageNames.push_back(inputName);
-
     std::string outputName = outputNameBase + std::to_string(i) + ".jpg";
-    //printf("%s \n", outputName.c_str());
+
+    inputImageNames.push_back(inputName);
     outputImageNames.push_back(outputName);
   }
 }
@@ -285,7 +291,7 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
   char *image_base_name = *argv; argv++, argc--;
   char *output_folder_name = *argv; argv++, argc--;
 
-  // extract image names
+  // extract mage names
   std::vector<std::string> inputImageNames;
   std::vector<std::string> outputImageNames;
   grabImageNames(inputImageNames, outputImageNames, input_folder_name, image_base_name, output_folder_name);
@@ -308,7 +314,6 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
 
       // iterate through image frames
       for (int i = 0; i < inputImageNames.size(); i++) {
-
         // allocate image frame
         R2Image* image_frame = new R2Image(inputImageNames[i].c_str());
         verifyImageAllocation(image_frame);
@@ -318,11 +323,7 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
         //image_frame->identifyCorners(markerImages, cornerCoords);
 
        // Write output image
-        if (!image_frame->Write(outputImageNames[i].c_str())) {
-          fprintf(stderr, "Unable to read image from %s\n", outputImageNames[i].c_str());
-          delete image_frame;
-          exit(-1);
-        } 
+        writeImage(image_frame, outputImageNames[i].c_str());
         
         // clean up memory
         delete image_frame;

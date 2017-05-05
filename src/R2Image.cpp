@@ -106,9 +106,9 @@ TrackFeatures(int numFeatures, R2Image& originalImage) {
 
 
 void R2Image::
-MatchImage(R2Image& originalImage) {
+MatchHomography(R2Image& originalImage) {
   const int numFeatures = 150;
-
+  printf("Marker 1")
   // Search for matches (a in original image, b in this one)
   std::vector<FeatureMatch> matches;
   findMatches(numFeatures, numFeatures, originalImage, matches);
@@ -146,7 +146,7 @@ findMatches(const int numFeatures, const int numMatches, R2Image& originalImage,
   findFeatures(numFeatures, minFeatureDistance, false, originalImage, selectedFeatures);
 
   // Search for matches
-  const double featureSearchAreaPercentage = 0.3;
+  const double featureSearchAreaPercentage = 0.3; // Don't make this smaller is messes us tracking on the face image
   const int ssdSearchRadius = 3;
 
   for (int f = 0; f < selectedFeatures.size(); f++) {   
