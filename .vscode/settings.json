@@ -11,6 +11,9 @@
         "memory": "cpp",
         "tuple": "cpp",
         "string": "cpp",
-        "cmath": "cpp"
+        "cmath": "cpp",
+        "__split_buffer": "cpp",
+        "utility": "cpp",
+        "vector": "cpp"
     }
 }

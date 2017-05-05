@@ -330,7 +330,7 @@ void importMarkerImages(std::vector<R2Image>& markerImages, char* marker_folder_
 
 void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<R2Image> &markerImages) {
   // nothing happening with these as of yet
-  std::vector<Point> cornerCoords;
+  std::vector<MarkerLocation> cornerCoords;
 
   // iterate through image frames
   for (int i = 0; i < 1; i++) {

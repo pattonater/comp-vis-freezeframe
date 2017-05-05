@@ -38,6 +38,17 @@ struct Point {
 };
 
 
+struct MarkerLocation {
+    int x;
+    int y;
+    float ssd;
+
+    MarkerLocation(float ssd) {
+      this->ssd = ssd;
+    }
+  };
+
+
 struct Feature {
   R2Pixel pixel;
   int x;
@@ -143,7 +154,9 @@ class R2Image {
   void svdTest();
 
   // Freeze Frame
-  void identifyCorners(std::vector<R2Image>& markerImages, std::vector<Point>& cornerCoords);
+  void identifyCorners(std::vector<R2Image>& markerImages, std::vector<MarkerLocation>& oldMarkerLocations);
+  void findMarkers(std::vector<R2Image>& markers, std::vector<MarkerLocation>& markerLocations, std::vector<MarkerLocation>& oldMarkerLocations);
+
   Point findImageMatch(const Point& searchOrigin, const float searchWindowPercentage, R2Image& comparisonImage);
 
   // Linear filtering operations
@@ -163,15 +176,21 @@ class R2Image {
   bool shouldInsertFeature(const std::vector<Feature>& features, const Feature& feature, const int minDistance) const;
   void findScaleInvariantHarrisFeaturePoints(std::vector<Feature>& features, R2Image& image);
   void calculateCharacteristicScales(std::vector<Feature>& features, R2Image& image);
-  void findFeatures(double numFeatures, double minDistance, bool scaleInvariant, R2Image& image, std::vector<Feature>& selectedFeatures);
-  FeatureMatch findFeatureMatch(const Feature& feature, R2Image& featureImage, const Point searchOrigin, const float searchAreaPercentage, int ssdSearchRadius);
-  FeatureMatch findFeatureMatchConsecutiveImages(const Feature& feature, R2Image& featureImage, const float searchAreaPercentage, int ssdSearchRadius);
-  float calculateSSD(const int x0, const int y0, const int x1, const int y1, R2Image& originalImage, const int ssdCompareReach);
   void classifyMatchesWithRANSAC(std::vector<FeatureMatch>& matches) const;
   bool similarMotion(const FeatureMatch& a, const FeatureMatch& b) const;
   void testDLT();
   void findMatches(const int numFeatures, const int numMatches, R2Image& originalImage, std::vector<FeatureMatch>& matches);
   void drawMatches(const std::vector<FeatureMatch> matches);
+
+  // feature finding
+  void findFeatures(double numFeatures, double minDistance, bool scaleInvariant, R2Image& image, std::vector<Feature>& selectedFeatures);
+  FeatureMatch findFeatureMatch(const Feature& feature, R2Image& featureImage, const Point searchOrigin, const float searchAreaPercentage, int ssdSearchRadius);
+  FeatureMatch findFeatureMatchConsecutiveImages(const Feature& feature, R2Image& featureImage, const float searchAreaPercentage, int ssdSearchRadius);
+
+  // ssd
+  float ssd(const R2Pixel& a, const R2Pixel& b) const;
+  float calculateSSD(const int x0, const int y0, R2Image& marker); 
+  float calculateSSD(const int x0, const int y0, const int x1, const int y1, R2Image& originalImage, const int ssdCompareReach);
 
   // helpers
   bool inBounds(const int x, const int y) const;
