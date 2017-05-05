@@ -25,7 +25,7 @@ bool R2Image:: inBounds(const int x, const int y) const { return (x >= 0) && (x 
 // Freeze Frame
 //////////////////////
 void R2Image::
-identifyCorners(const std::vector<R2Image>& corners, std::vector<Point>& cornerCoords) {
+identifyCorners(std::vector<R2Image>& markerImages, std::vector<Point>& cornerCoords) {
   // Read in 4 corner images
   // find best fit in image
   // record coordinates, output coordinates
@@ -33,8 +33,13 @@ identifyCorners(const std::vector<R2Image>& corners, std::vector<Point>& cornerC
 
   // look for each corner
   for (size_t i = 0; i < 4; ++i) {
+    // These can be improved with the previous coordinates
+    const Point searchOrigin(0, 0);
+    const float searchWindowPercentage = 1.0;
+    R2Image& markerImage = markerImages[i];
 
-  }
+    Point match = findImageMatch(searchOrigin, searchWindowPercentage, markerImage);
+ }
 }
 
 Point R2Image::

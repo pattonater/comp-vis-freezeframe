@@ -126,15 +126,24 @@ CheckOption(char *option, int argc, int minargc)
 //   return 1;
 // }
 
+
+////////////////////////////
+// Single Image Processing
+////////////////////////////
+
+void verifyImageAllocation(R2Image *image) {
+  if (!image) {
+    fprintf(stderr, "Unable to allocate image\n");
+    exit(-1);
+  }
+}
+
 void processImage(int argc, char **argv, char *input_image_name) {
   char *output_image_name = *argv; argv++, argc--;
 
   // Allocate image
   R2Image *image = new R2Image();
-  if (!image) {
-    fprintf(stderr, "Unable to allocate image\n");
-    exit(-1);
-  }
+  verifyImageAllocation(image);
 
   // Read input image
   if (!image->Read(input_image_name)) {
@@ -272,7 +281,6 @@ void grabImageNames(std::vector<std::string>& inputImageNames, std::vector<std::
   }
 }
 
-
 void processImageSequence(int argc, char **argv, char *input_folder_name) {
   char *image_base_name = *argv; argv++, argc--;
   char *output_folder_name = *argv; argv++, argc--;
@@ -295,22 +303,19 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
       argv += 1, argc -= 1;
 
       // Grab corners
-      std::vector<R2Image> corners;
+      std::vector<R2Image> markerImages;
       std::vector<Point> cornerCoords;
 
       // iterate through image frames
       for (int i = 0; i < inputImageNames.size(); i++) {
 
         // allocate image frame
-        const char* file_name = inputImageNames[i].c_str();
-        R2Image* image_frame = new R2Image(file_name);
-        if (!image_frame) {
-          fprintf(stderr, "Unable to allocate image\n");
-          exit(-1);
-        }
+        R2Image* image_frame = new R2Image(inputImageNames[i].c_str());
+        verifyImageAllocation(image_frame);
 
         // Find trackers on image
-        image_frame->identifyCorners(corners, cornerCoords);
+        //dont try this until have succesfully imported 
+        //image_frame->identifyCorners(markerImages, cornerCoords);
 
        // Write output image
         if (!image_frame->Write(outputImageNames[i].c_str())) {

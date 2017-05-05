@@ -142,6 +142,10 @@ class R2Image {
   // show how SVD works
   void svdTest();
 
+  // Freeze Frame
+  void identifyCorners(std::vector<R2Image>& markerImages, std::vector<Point>& cornerCoords);
+  Point findImageMatch(const Point& searchOrigin, const float searchWindowPercentage, R2Image& comparisonImage);
+
   // Linear filtering operations
   void applyFilter3x3(int sobel[3][3]);
   void SobelX();
@@ -187,10 +191,6 @@ class R2Image {
   void drawSquare(const int x, const int y, const int reach, const float r, const float g, const float b);
   void drawLine(int x0, int y0, int x1, int y1, const float r, const float g, const float b);
   void drawCircle(const int xCenter, const int yCenter, const int radius, const float r, const float g, const float b);
-
-  // Freeze Frame
-  void identifyCorners(const std::vector<R2Image>& corners, std::vector<Point>& cornerCoords);
-  Point findImageMatch(const Point& searchOrigin, const float searchWindowPercentage, R2Image& comparisonImage);
 
   // further operations
   void blendOtherImageTranslated(R2Image * otherImage);
