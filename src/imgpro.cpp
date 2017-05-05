@@ -265,6 +265,32 @@ void processImage(int argc, char **argv, char *input_image_name) {
 ////////////////////////////
 // Image Sequence Processing
 ////////////////////////////
+
+bool debugMode2 = true;
+
+// overloaded version. Finds images in a single file given a base name structure
+void grabImageNames(std::vector<std::string>& imageNames, char *folder_name, char *base_name) {
+  // printf("grabbing marker image names...\n");
+  printf("\n");
+  const int maxNumberImages = 50;
+
+  const std::string nameBase = std::string(folder_name) + "/" + std::string(base_name);
+  
+  for( int i = 1; i < maxNumberImages; i++) {
+    const std::string name = nameBase + std::to_string(i) + ".jpg";
+
+    bool validFileName = checkFileExistance(name);
+    // exits loop for first invalid-numbered file
+    if (!validFileName) { break; }
+
+    //printf("%s \n", inputName.c_str());
+    imageNames.push_back(name);
+
+  }
+  // printf("marker names grabbed.\n");
+}
+
+
 void grabImageNames(std::vector<std::string>& inputImageNames, std::vector<std::string>& outputImageNames, char *input_folder_name, char *image_base_name, char *output_folder_name) {
   const int maxNumberImages = 50;
 
@@ -287,11 +313,52 @@ void grabImageNames(std::vector<std::string>& inputImageNames, std::vector<std::
   }
 }
 
+void importMarkerImages(std::vector<R2Image>& markerImages, char* marker_folder_name, char* marker_base_name) {
+  std::vector<std::string> markerImageNames;
+  grabImageNames(markerImageNames, marker_folder_name, marker_base_name);
+
+  // import marker images
+  for (size_t i = 0; i < markerImageNames.size(); ++i) {
+    //printf(markerImageNames[i].c_str()); printf("\n");
+    R2Image *marker = new R2Image(markerImageNames[i].c_str());
+    verifyImageAllocation(marker);
+    markerImages.push_back(*marker);
+  }
+
+  assert(markerImages.size() == 4);
+}
+
+void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<R2Image> &markerImages) {
+  // nothing happening with these as of yet
+  std::vector<Point> cornerCoords;
+
+  // iterate through image frames
+  for (int i = 0; i < 1; i++) {
+    // allocate image frame
+    R2Image *image_frame = new R2Image(inputImageNames[i].c_str());
+    verifyImageAllocation(image_frame);
+
+    // Find trackers on image
+    //dont try this until have succesfully imported
+    if (debugMode2) printf("Identifying corners on image %d\n", i);
+    image_frame->identifyCorners(markerImages, cornerCoords);
+
+    // Write output image
+    writeImage(image_frame, outputImageNames[i].c_str());
+
+    // clean up memory
+    delete image_frame;
+  }
+}
+
 void processImageSequence(int argc, char **argv, char *input_folder_name) {
+  if (debugMode2) printf("processing image sequence...\n");
   char *image_base_name = *argv; argv++, argc--;
   char *output_folder_name = *argv; argv++, argc--;
+  
+  if (debugMode2) printf("pulled out strings from input.\n");
 
-  // extract mage names
+  // extract image names
   std::vector<std::string> inputImageNames;
   std::vector<std::string> outputImageNames;
   grabImageNames(inputImageNames, outputImageNames, input_folder_name, image_base_name, output_folder_name);
@@ -300,34 +367,23 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
   // break if no images
   if (inputImageNames.size() <= 0) return;
 
-  printf("Number of images: %lu \n", inputImageNames.size());
+  if (debugMode2) printf("Grabbed %lu image names \n", inputImageNames.size());
 
   // Parse arguments and perform operations
   while (argc > 0) {
     if (!strcmp(*argv, "-harryPotterize")) {
-      CheckOption(*argv, argc, 1);
-      argv += 1, argc -= 1;
+      CheckOption(*argv, argc, 3);
+      char* marker_folder_name = argv[1];
+      char* marker_base_name = argv[2];
+      argv += 3, argc -= 3;
 
-      // Grab corners
+      // import marker images
       std::vector<R2Image> markerImages;
-      std::vector<Point> cornerCoords;
+      importMarkerImages(markerImages, marker_folder_name, marker_base_name);
+      if (debugMode2) printf("marker images grabbed.\n");      
 
-      // iterate through image frames
-      for (int i = 0; i < inputImageNames.size(); i++) {
-        // allocate image frame
-        R2Image* image_frame = new R2Image(inputImageNames[i].c_str());
-        verifyImageAllocation(image_frame);
-
-        // Find trackers on image
-        //dont try this until have succesfully imported 
-        //image_frame->identifyCorners(markerImages, cornerCoords);
-
-       // Write output image
-        writeImage(image_frame, outputImageNames[i].c_str());
-        
-        // clean up memory
-        delete image_frame;
-      }
+      // do the magic
+      harryPotterizeSequence(inputImageNames, outputImageNames, markerImages);
     }
     else {
       // Unrecognized program argument

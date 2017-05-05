@@ -164,8 +164,8 @@ class R2Image {
   void findScaleInvariantHarrisFeaturePoints(std::vector<Feature>& features, R2Image& image);
   void calculateCharacteristicScales(std::vector<Feature>& features, R2Image& image);
   void findFeatures(double numFeatures, double minDistance, bool scaleInvariant, R2Image& image, std::vector<Feature>& selectedFeatures);
-  FeatureMatch findFeatureMatch(const Feature& feature, R2Image& featureImage, const Point searchOrigin, const float searchAreaPercentage, const int ssdSearchRadius);
-  FeatureMatch findFeatureMatchConsecutiveImages(const Feature& feature, R2Image& featureImage, const float searchAreaPercentage, const int ssdSearchRadius);
+  FeatureMatch findFeatureMatch(const Feature& feature, R2Image& featureImage, const Point searchOrigin, const float searchAreaPercentage, int ssdSearchRadius);
+  FeatureMatch findFeatureMatchConsecutiveImages(const Feature& feature, R2Image& featureImage, const float searchAreaPercentage, int ssdSearchRadius);
   float calculateSSD(const int x0, const int y0, const int x1, const int y1, R2Image& originalImage, const int ssdCompareReach);
   void classifyMatchesWithRANSAC(std::vector<FeatureMatch>& matches) const;
   bool similarMotion(const FeatureMatch& a, const FeatureMatch& b) const;

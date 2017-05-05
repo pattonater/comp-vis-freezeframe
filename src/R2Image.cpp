@@ -38,16 +38,24 @@ identifyCorners(std::vector<R2Image>& markerImages, std::vector<Point>& cornerCo
     const float searchWindowPercentage = 1.0;
     R2Image& markerImage = markerImages[i];
 
+    // printf("Calling findImageMatch on marker %d\n", i);
+
     Point match = findImageMatch(searchOrigin, searchWindowPercentage, markerImage);
+
+
+    // draw X over spot
+    drawSquare(match.x, match.y, 10, 1.0, 0.0, 0.0);
  }
 }
 
 Point R2Image::
 findImageMatch(const Point& searchOrigin, const float searchWindowPercentage, R2Image& comparisonImage) {
   // Can just use findFeatureMatch, where feature is center of comparison image and ssdSearchRadius is the radius of the comparison image
+
   const Feature comparisonImageCenter(comparisonImage.Height() / 2, comparisonImage.Width() / 2);
   const int ssdSearchRadius = fmax(comparisonImage.Width(), comparisonImage.Height()) / 2;
 
+  // printf("findImageMatch MID\n");
   // find best match for comparison image (can combine these two lines but figured would be confusing)
   FeatureMatch match = findFeatureMatch(comparisonImageCenter, comparisonImage, searchOrigin, searchWindowPercentage, ssdSearchRadius);
   Feature matchCenter = match.b;
