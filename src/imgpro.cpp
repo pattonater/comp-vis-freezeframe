@@ -266,7 +266,7 @@ void processImage(int argc, char **argv, char *input_image_name) {
 // Image Sequence Processing
 ////////////////////////////
 
-bool debugMode2 = true;
+bool debugMode = true;
 
 // overloaded version. Finds images in a single file given a base name structure
 void grabImageNames(std::vector<std::string>& imageNames, char *folder_name, char *base_name) {
@@ -340,7 +340,7 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
 
     // Find trackers on image
     //dont try this until have succesfully imported
-    if (debugMode2) printf("Identifying corners on image %d\n", i);
+    if (debugMode) printf("Identifying corners on image %d\n", i+1);
     image_frame->identifyCorners(markerImages, cornerCoords);
 
     // Write output image
@@ -352,11 +352,11 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
 }
 
 void processImageSequence(int argc, char **argv, char *input_folder_name) {
-  if (debugMode2) printf("processing image sequence...\n");
+  if (debugMode) printf("processing image sequence...\n");
   char *image_base_name = *argv; argv++, argc--;
   char *output_folder_name = *argv; argv++, argc--;
   
-  if (debugMode2) printf("pulled out strings from input.\n");
+  if (debugMode) printf("pulled out strings from input.\n");
 
   // extract image names
   std::vector<std::string> inputImageNames;
@@ -367,7 +367,7 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
   // break if no images
   if (inputImageNames.size() <= 0) return;
 
-  if (debugMode2) printf("Grabbed %lu image names \n", inputImageNames.size());
+  if (debugMode) printf("Grabbed %lu image names \n", inputImageNames.size());
 
   // Parse arguments and perform operations
   while (argc > 0) {
@@ -380,7 +380,12 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
       // import marker images
       std::vector<R2Image> markerImages;
       importMarkerImages(markerImages, marker_folder_name, marker_base_name);
-      if (debugMode2) printf("marker images grabbed.\n");      
+      if (debugMode) printf("marker images grabbed.\n");    
+
+      // for (int i = 0; i < markerImages.size(); i++) {
+      //     writeImage(&markerImages[i], outputImageNames[i].c_str());
+      // }
+      // return;  
 
       // do the magic
       harryPotterizeSequence(inputImageNames, outputImageNames, markerImages);

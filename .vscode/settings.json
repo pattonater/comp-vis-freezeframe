@@ -10,6 +10,7 @@
         "iterator": "cpp",
         "memory": "cpp",
         "tuple": "cpp",
-        "string": "cpp"
+        "string": "cpp",
+        "cmath": "cpp"
     }
 }

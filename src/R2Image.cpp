@@ -26,62 +26,46 @@ bool R2Image:: inBounds(const int x, const int y) const { return (x >= 0) && (x 
 //////////////////////
 void R2Image::
 identifyCorners(std::vector<R2Image>& markerImages, std::vector<Point>& cornerCoords) {
+  bool  debugMode = true;
   // Read in 4 corner images
   // find best fit in image
   // record coordinates, output coordinates
   // draw uniquely-colored Xs on corners
 
+  if (debugMode) printf("\n identifyCorners:\n");
+
+  // drawSquare(10, 10, 10, 1.0, 0.0, 0.0);
+  // return;
   // look for each corner
-  for (size_t i = 0; i < 4; ++i) {
+  for (size_t i = 0; i < 2; ++i) {
     // These can be improved with the previous coordinates
-    const Point searchOrigin(0, 0);
-    const float searchWindowPercentage = 1.0;
+    const Point searchOrigin(width/2, height/2);
+    const float searchWindowPercentage = 0.8;
     R2Image& markerImage = markerImages[i];
 
-    // printf("Calling findImageMatch on marker %d\n", i);
+    if (debugMode) printf("Looking for marker %lu...\n", i+1);
 
     Point match = findImageMatch(searchOrigin, searchWindowPercentage, markerImage);
 
-
     // draw X over spot
     drawSquare(match.x, match.y, 10, 1.0, 0.0, 0.0);
+
+    if (debugMode) printf("Marker found!\n");
  }
+ if (debugMode) printf("All markers located\n\n");
 }
 
 Point R2Image::
 findImageMatch(const Point& searchOrigin, const float searchWindowPercentage, R2Image& comparisonImage) {
   // Can just use findFeatureMatch, where feature is center of comparison image and ssdSearchRadius is the radius of the comparison image
-
-  const Feature comparisonImageCenter(comparisonImage.Height() / 2, comparisonImage.Width() / 2);
+  const Feature comparisonImageCenter(comparisonImage.Width() / 2, comparisonImage.Height() / 2);
   const int ssdSearchRadius = fmax(comparisonImage.Width(), comparisonImage.Height()) / 2;
 
-  // printf("findImageMatch MID\n");
   // find best match for comparison image (can combine these two lines but figured would be confusing)
   FeatureMatch match = findFeatureMatch(comparisonImageCenter, comparisonImage, searchOrigin, searchWindowPercentage, ssdSearchRadius);
   Feature matchCenter = match.b;
 
   return Point(matchCenter.x, matchCenter.y);
-
-
-
-  // // calculate search offsets
-  // const int widthBounds = comparisonImage.Width() / 2 + 1;
-  // const int heightBounds = comparisonImage.Height() / 2 + 1;
-
-  // // Search bounds: improve these later using search origin and search window
-  // const int xMin = widthBounds;
-  // const int xMax = width - widthBounds;
-  // const int yMin = heightBounds;
-  // const int yMax = height - heightBounds;
-
-
-  // // Iterate through points in search box
-  // for (int x = xMin; x < xMax; ++x) {
-  //   for (int y = yMin; y < yMax; ++y) {
-      
-
-  //   }
-  // }
 }
 
 
@@ -116,7 +100,6 @@ TrackFeatures(int numFeatures, R2Image& originalImage) {
 void R2Image::
 MatchHomography(R2Image& originalImage) {
   const int numFeatures = 150;
-  printf("Marker 1")
   // Search for matches (a in original image, b in this one)
   std::vector<FeatureMatch> matches;
   findMatches(numFeatures, numFeatures, originalImage, matches);
@@ -144,7 +127,6 @@ MatchHomography(R2Image& originalImage) {
 ///////////////////////
 // Match Finding
 //////////////////////
-
 void R2Image::
 findMatches(const int numFeatures, const int numMatches, R2Image& originalImage, std::vector<FeatureMatch>& matches) {
   const int minFeatureDistance = 10;
@@ -183,10 +165,15 @@ findFeatureMatch(const Feature& feature, R2Image& featureImage, const Point sear
     const int maxPossibleSSD = (2 * ssdSearchRadius + 1) * (2 * ssdSearchRadius + 1) * 3;
     FeatureMatch match(feature, maxPossibleSSD);
 
+    printf("Search Area: (%f, %f) -> (%f, %f) \n",fmax(0, searchOrigin.x - searchWidthRadius), fmax(0, searchOrigin.y - searchHeightRadius),
+    fmin(width, searchOrigin.x + searchWidthRadius), fmin(height, searchOrigin.y + searchHeightRadius));
+    
+
     // Search all pixels in search area to find most similar feature
     for (int x = fmax(0, searchOrigin.x - searchWidthRadius); x < fmin(width, searchOrigin.x + searchWidthRadius); x++) {
       for (int y = fmax(0, searchOrigin.y - searchHeightRadius); y < fmin(height, searchOrigin.y + searchHeightRadius); y++) {       
-        
+        //printf("Looking at pixel (%d, %d) \n", x, y);
+        Pixel(x,y) = R2Pixel(0,1,0,1);
         // calculate ssd for possible match, save it if it is the best yet
         const float ssd = calculateSSD(x, y, feature.x, feature.y, featureImage, ssdSearchRadius);
         if (ssd < match.ssd) {
@@ -195,6 +182,8 @@ findFeatureMatch(const Feature& feature, R2Image& featureImage, const Point sear
         }
       }
     }
+    Pixel(0, 0) = R2Pixel(0,1,0,1);
+    printf("SSD: %f\n", match.ssd);
     return match;
 }
 
@@ -208,7 +197,7 @@ calculateSSD(const int x0, const int y0, const int x1, const int y1, R2Image& ot
       if (inBounds(x0 + i, y0 + j) && otherImage.inBounds(x1 + i, y1 + j)) {
           const R2Pixel& a = Pixel(x0 + i, y0 + j);
           const R2Pixel& b = otherImage.Pixel(x1 + i, y1 + j);
-
+          
           const float rDif = a.Red() - b.Red();
           const float gDif = a.Green() - b.Green();
           const float bDif = a.Blue() - b.Blue();
