@@ -46,6 +46,7 @@ findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, 
 
     printf("MARKER START: ssd %f\n", bestSSD);
 
+
     // use oldLocation to improve search speed
     //MarkerLocation oldLocation = oldMarkerLocations[i];
 
@@ -63,13 +64,14 @@ findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, 
 
     // Iterate over image
     for (int x = xMin; x < xMax; x++) {
-      //printf("Reached row %d... \n", x + 1);
+      printf("Reached row %d... \n", x + 1);
+        printf("%d \n", i);
       for (int y = yMin; y < yMax; y++) {
         // See if point is better match for any of markers
-        //Pixel(x,y) = R2Pixel(1,0,0,1);
-        const float ssd = calculateSSD(x, y, marker);   
+        //Pixel(x,y) = R2Pixel(1,0,0,1); 
+        const float ssd = calculateSSD(x, y, marker);
         if (ssd < bestSSD) {
-          //printf("Better ssd: %d... \n", ssd);
+          printf("Better ssd: %f... \n", ssd);
           bestSSD = ssd;
           bestX = x;
           bestY = y;
@@ -78,6 +80,35 @@ findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, 
     }
     printf("MARKER DONE ssd %f\n", bestSSD);
     markerLocations.push_back(Point(bestX, bestY));
+      
+//      for (int x = xMin; x < xMax; x++) {
+//          printf("Reached row %d... \n", x + 1);
+//          printf("%d \n", i);
+//          for (int y = yMin; y < yMax; y++) {
+//              
+//              if ((i == 0) && (x > width / 2 || y > height / 2)) {
+//                  printf("1\n");
+//                  break;
+//              } else if ((i == 1) && (x < width / 2 || y > height / 2)) {
+//                  printf("2\n");
+//                  break;
+//              } else if ((i == 2) && (x > width / 2 || y < height / 2)) {
+//                  printf("3\n");
+//                  break;
+//              } else if ((i == 3) && (x < width / 2 || y < height / 2)) {
+//                  printf("4\n");
+//                  break;
+//              }
+//              // See if point is better match for any of markers
+//              const float ssd = calculateSSD(x, y, marker);
+//              if (ssd < bestSSD) {
+//                  printf("Better ssd: %f... \n", ssd);
+//                  bestSSD = ssd;
+//                  bestX = x;
+//                  bestY = y;
+//              }
+//          }
+//      }
   }
 }
 
