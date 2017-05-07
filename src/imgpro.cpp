@@ -330,7 +330,7 @@ void importMarkerImages(std::vector<R2Image>& markerImages, char* marker_folder_
 
 void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<R2Image> &markerImages) {
   // nothing happening with these as of yet
-  std::vector<MarkerLocation> cornerCoords;
+  std::vector<Point> oldMarkerLocations;
 
   // iterate through image frames
   for (int i = 0; i < 1; i++) {
@@ -341,7 +341,7 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
     // Find trackers on image
     //dont try this until have succesfully imported
     if (debugMode) printf("Identifying corners on image %d\n", i+1);
-    image_frame->identifyCorners(markerImages, cornerCoords);
+    image_frame->identifyCorners(markerImages, oldMarkerLocations);
 
     // Write output image
     writeImage(image_frame, outputImageNames[i].c_str());
