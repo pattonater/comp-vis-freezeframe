@@ -138,9 +138,8 @@ void verifyImageAllocation(R2Image *image) {
 }
 
 void writeImage(R2Image* image, const char* name) {
-    printf("in write image\n");
+    //printf("in write image\n");
   if (!image->Write(name)) {
-      printf("in if\n");
      fprintf(stderr, "Unable to read image from %s\n", name);
      delete image;
      exit(-1);
@@ -268,7 +267,7 @@ void processImage(int argc, char **argv, char *input_image_name) {
 // Image Sequence Processing
 ////////////////////////////
 
-bool debugMode = true;
+bool debugMode = false;
 
 // overloaded version. Finds images in a single file given a base name structure
 void grabImageNames(std::vector<std::string>& imageNames, char *folder_name, char *base_name) {
@@ -338,6 +337,7 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
         cornerCoords.push_back(Point(-1, -1));
     }
 
+    printf("Sequence loaded: \n");
   // iterate through image frames
   for (int i = 0; i < inputImageNames.size(); i++) {
     // allocate image frame
@@ -352,9 +352,12 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
     // Write output image
     writeImage(image_frame, outputImageNames[i].c_str());
 
+    printf("Image %d processed...\n", i);
+
     // clean up memory
     delete image_frame;
   }
+  printf("Sequence done!\n");
 }
 
 void processImageSequence(int argc, char **argv, char *input_folder_name) {

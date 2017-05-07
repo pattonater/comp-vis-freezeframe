@@ -26,7 +26,7 @@ bool R2Image:: inBounds(const int x, const int y) const { return (x >= 0) && (x 
 //////////////////////
 void R2Image::
 identifyCorners(std::vector<R2Image>& markers, std::vector<Point>& oldMarkerLocations) {
-    printf("markers size %lu\n", markers.size());
+   // printf("markers size %lu\n", markers.size());
   // fill markerLocations with matched locations to the marker images
   std::vector<Point> markerLocations;
   findMarkers(markers, markerLocations, oldMarkerLocations);
@@ -35,14 +35,14 @@ identifyCorners(std::vector<R2Image>& markers, std::vector<Point>& oldMarkerLoca
   for (int i = 0; i < markerLocations.size(); i++) {
     Point& p = markerLocations[i];
     drawSquare(p.x, p.y, 10, 0.0, 1.0, 0.0);
-      oldMarkerLocations.push_back(p);
+    oldMarkerLocations[i] = p;
   }
 }
 
 void R2Image::
 findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, std::vector<Point>& oldMarkerLocations) {
   for (int i = 0; i < markers.size(); i++) {
-    printf("***** START Marker %d *****\n", i+1);
+    //printf("***** START Marker %d *****\n", i+1);
     R2Image& marker = markers[i];
     float bestSSD = marker.Width() * marker.Height() * 3;
       int bestX = -1;
@@ -59,6 +59,7 @@ findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, 
       const int searchHeightReach = height * 0.05;
       
       const Point& oldLocation = oldMarkerLocations[i];
+      //printf("(%f, %f) \n", oldLocation.x, oldLocation.y);
       
       const bool pastLocExists = oldLocation.x != -1;
       // initialize search bounds to 20% of image around
@@ -78,7 +79,7 @@ findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, 
         // See if point is better match for any of markers
         const float ssd = calculateSSD(x, y, marker);
         if (ssd < bestSSD) {
-            printf("Marker %d Better ssd: %f... \n", i + 1, ssd);
+            //printf("Marker %d Better ssd: %f... \n", i + 1, ssd);
 //          printf("Better ssd: %f... \n", ssd);
             bestSSD = ssd;
             bestX = x;
