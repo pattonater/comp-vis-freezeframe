@@ -4,7 +4,7 @@
 FFMPEG:
 
 Turning a video into a sequence of frames:
-ffmpeg -i input.mp4 -vf fps=24 output%d.jpg
+ffmpeg -i input.m4v -vf fps=24 output%d.jpg
 
 Turning a sequence of frames into a video:
-ffmpeg -framerate 24 -i img%d.jpg output.mp4
+ffmpeg -framerate 24 -i img%d.jpg output.m4v

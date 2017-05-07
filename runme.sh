@@ -18,4 +18,4 @@ popd
 
 # run harryPotterize
 src/imgpro input/screen_corners screen_corners output/screen_corners \
-    -harryPotterize input/corners marker
+    -harryPotterize input/markers marker
