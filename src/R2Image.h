@@ -2,6 +2,8 @@
 #ifndef R2_IMAGE_INCLUDED
 #define R2_IMAGE_INCLUDED
 
+
+
 // Constant definitions
 
 typedef enum {
@@ -30,10 +32,6 @@ typedef enum {
 struct Point {
   double x;
   double y;
-    
-    Point() {
-        
-    }
   Point(double a, double b) {
     x = a; y = b;
   }
@@ -112,21 +110,6 @@ struct FeatureMatch {
 
 class R2Image {
  public:
-    
-    struct Marker {
-        R2Image* image;
-        Point location;
-        
-        Marker(R2Image* image) {
-            this->image = image;
-            this->location = Point(-1, -1);
-        }
-        
-        Marker(R2Image* image, Point location) {
-            this->image = image;
-            this->location = location;
-        }
-    };
   // Constructors/destructor
   R2Image(void);
   R2Image(const char *filename);

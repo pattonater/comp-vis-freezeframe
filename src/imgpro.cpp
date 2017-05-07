@@ -138,7 +138,9 @@ void verifyImageAllocation(R2Image *image) {
 }
 
 void writeImage(R2Image* image, const char* name) {
+    printf("in write image\n");
   if (!image->Write(name)) {
+      printf("in if\n");
      fprintf(stderr, "Unable to read image from %s\n", name);
      delete image;
      exit(-1);
@@ -313,7 +315,7 @@ void grabImageNames(std::vector<std::string>& inputImageNames, std::vector<std::
   }
 }
 
-void importMarkerImages(std::vector<R2Image>& markers, char* marker_folder_name, char* marker_base_name) {
+void importMarkerImages(std::vector<R2Image>& markerImages, char* marker_folder_name, char* marker_base_name) {
   std::vector<std::string> markerImageNames;
   grabImageNames(markerImageNames, marker_folder_name, marker_base_name);
 
@@ -322,23 +324,22 @@ void importMarkerImages(std::vector<R2Image>& markers, char* marker_folder_name,
     //printf(markerImageNames[i].c_str()); printf("\n");
     R2Image *marker = new R2Image(markerImageNames[i].c_str());
     verifyImageAllocation(marker);
-    markers.push_back(*marker);
+    markerImages.push_back(*marker);
   }
 
-  assert(markers.size() == 4);
+//  assert(markerImages.size() == 4);
 }
 
 void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<R2Image> &markerImages) {
   // nothing happening with these as of yet
-  std::vector<Point> oldMarkerLocations;
-
-  // initialize point locations to (-1, -1) to be able to tell that it is first run
-  for (int i = 0; i < markerImages.size(); i++) {
-    oldMarkerLocations.push_back(Point(-1, -1));
-  }
+  std::vector<Point> cornerCoords;
+    
+    for (int i = 0; i < inputImageNames.size(); i++) {
+        cornerCoords.push_back(Point(-1, -1));
+    }
 
   // iterate through image frames
-  for (int i = 0; i < 1; i++) {
+  for (int i = 0; i < inputImageNames.size(); i++) {
     // allocate image frame
     R2Image *image_frame = new R2Image(inputImageNames[i].c_str());
     verifyImageAllocation(image_frame);
@@ -346,8 +347,7 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
     // Find trackers on image
     //dont try this until have succesfully imported
     if (debugMode) printf("Identifying corners on image %d\n", i+1);
-
-    image_frame->identifyCorners(markerImages, oldMarkerLocations);
+    image_frame->identifyCorners(markerImages, cornerCoords);
 
     // Write output image
     writeImage(image_frame, outputImageNames[i].c_str());
@@ -384,8 +384,8 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
       argv += 3, argc -= 3;
 
       // import marker images
-      std::vector<R2Image> markers;
-      importMarkerImages(markers, marker_folder_name, marker_base_name);
+      std::vector<R2Image> markerImages;
+      importMarkerImages(markerImages, marker_folder_name, marker_base_name);
       if (debugMode) printf("marker images grabbed.\n");    
 
       // for (int i = 0; i < markerImages.size(); i++) {
@@ -394,7 +394,7 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
       // return;  
 
       // do the magic
-      harryPotterizeSequence(inputImageNames, outputImageNames, markers);
+      harryPotterizeSequence(inputImageNames, outputImageNames, markerImages);
     }
     else {
       // Unrecognized program argument

@@ -20,76 +20,72 @@
 bool R2Image:: inBounds(const Point p) const { return inBounds(p.x, p.y); }
 bool R2Image:: inBounds(const int x, const int y) const { return (x >= 0) && (x < width) && (y >= 0) && (y < height); }
 
+
 ///////////////////////
 // Freeze Frame
 //////////////////////
 void R2Image::
 identifyCorners(std::vector<R2Image>& markers, std::vector<Point>& oldMarkerLocations) {
+    printf("markers size %lu\n", markers.size());
   // fill markerLocations with matched locations to the marker images
   std::vector<Point> markerLocations;
   findMarkers(markers, markerLocations, oldMarkerLocations);
 
-  
+  // Mark each location
   for (int i = 0; i < markerLocations.size(); i++) {
-    const Point& p = markerLocations[i];
-    printf("Marker %d: (%f, %f)\n", i, p.x, p.y);
-
-    // Mark each location
+    Point& p = markerLocations[i];
     drawSquare(p.x, p.y, 10, 0.0, 1.0, 0.0);
-
-    // This will lead to old ones being in there too somewhere, but ddon't want to risk [i] as might crash on first run
-    oldMarkerLocations[i] = p;
+      oldMarkerLocations.push_back(p);
   }
 }
 
 void R2Image::
 findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, std::vector<Point>& oldMarkerLocations) {
   for (int i = 0; i < markers.size(); i++) {
+    printf("***** START Marker %d *****\n", i+1);
     R2Image& marker = markers[i];
     float bestSSD = marker.Width() * marker.Height() * 3;
-    int bestX = -1; int bestY = -1;
+      int bestX = -1;
+      int bestY = -1;
 
-    printf("MARKER START: ssd %f\n", bestSSD);
-
-
-    // use oldLocation to improve search speed
-    const Point& oldLoc = oldMarkerLocations[i];
-    const int searchWidthRadius = width * 0.3;
-    const int searchHeightRadius = height * 0.3;
-
-
-    const bool pastLocExists = oldLoc.x != -1;
-    // initialize search bounds to 20% of image around
-    const int xMin = pastLocExists ? oldLoc.x - searchWidthRadius : 250;
-    const int xMax = pastLocExists ? oldLoc.x + searchWidthRadius : width - 150;
-    const int yMin = pastLocExists ? oldLoc.y - searchHeightRadius : 150;
-    const int yMax = pastLocExists ? oldLoc.y + searchHeightRadius : height - 150;
-
-// divides screen into 4 quadrants
-//    const int xMin = ((i % 2) * width / 2) + (1 - (i % 2)) * marker.Width() / 2;
-//    const int xMax = width / (2 - (i % 2)) - ((i % 2)) * marker.Width() / 2;
-//    const int yMin = ((i / 2) * height / 2) + (1 - (i / 2)) * marker.Height() / 2;
-//    const int yMax = height / (2 - (i / 2)) - ((i / 2)) * marker.Height() / 2;
-
-  printf("(%d, %d) -> (%d, %d) \n", xMin, yMin, xMax, yMax);
+      // remove for final
+      const int a = ((i % 2) * width / 2);
+      const int b = width / (2 - (i % 2));
+      const int c = ((i / 2) * height / 2);
+      const int d = height / (2 - (i / 2));
+      
+      // use oldLocation to improve search speed
+      const int searchWidthReach = width * 0.05;
+      const int searchHeightReach = height * 0.05;
+      
+      const Point& oldLocation = oldMarkerLocations[i];
+      
+      const bool pastLocExists = oldLocation.x != -1;
+      // initialize search bounds to 20% of image around
+      const int xMin = pastLocExists ? oldLocation.x - searchWidthReach : a; //CHANGE TO 0
+      const int xMax = pastLocExists ? oldLocation.x + searchWidthReach : b; //CHANGE TO width
+      const int yMin = pastLocExists ? oldLocation.y - searchHeightReach : c; //CHANGE TO 0
+      const int yMax = pastLocExists ? oldLocation.y + searchHeightReach : d; //CHANGE TO height
+      
+      // speed optimization: can safely step by an 8th of the marker without missing
+      const int xStepSize = marker.Width() / 8;
+      const int yStepSize = marker.Height() / 8;
 
     // Iterate over image
-    for (int x = xMin; x < xMax; x++) {
-     // printf("Reached row %d... \n", x + 1);
-       // printf("%d \n", i);
-      for (int y = yMin; y < yMax; y++) {
+    for (int x = xMin; x < xMax; x += xStepSize) {
+//      printf("Reached row %d... \n", x + 1);
+      for (int y = yMin; y < yMax; y += yStepSize) {
         // See if point is better match for any of markers
-        //Pixel(x,y) = R2Pixel(1,0,0,1); 
         const float ssd = calculateSSD(x, y, marker);
         if (ssd < bestSSD) {
-          //printf("Better ssd: %f... \n", ssd);
-          bestSSD = ssd;
-          bestX = x;
-          bestY = y;
+            printf("Marker %d Better ssd: %f... \n", i + 1, ssd);
+//          printf("Better ssd: %f... \n", ssd);
+            bestSSD = ssd;
+            bestX = x;
+            bestY = y;
         }
-       }
+      }
     }
-    printf("MARKER DONE ssd %f\n", bestSSD);
     markerLocations.push_back(Point(bestX, bestY));
   }
 }
@@ -110,7 +106,7 @@ calculateSSD(const int x0, const int y0, R2Image& marker) {
       if (inBounds(x0 + i, y0 + j)) {
           sum += ssd(Pixel(x0 + i, y0 + j), marker.Pixel(x1 + i, y1 + j));
       } else {
-        // account for out of bounds pixels by assigning them maximum
+          // account for out of bounds pixels by adding max possible ssd
           sum += 3;
       }
     }
