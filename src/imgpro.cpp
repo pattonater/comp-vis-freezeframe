@@ -313,7 +313,7 @@ void grabImageNames(std::vector<std::string>& inputImageNames, std::vector<std::
   }
 }
 
-void importMarkerImages(std::vector<R2Image::Marker>& markers, char* marker_folder_name, char* marker_base_name) {
+void importMarkerImages(std::vector<R2Image>& markers, char* marker_folder_name, char* marker_base_name) {
   std::vector<std::string> markerImageNames;
   grabImageNames(markerImageNames, marker_folder_name, marker_base_name);
 
@@ -322,7 +322,7 @@ void importMarkerImages(std::vector<R2Image::Marker>& markers, char* marker_fold
     //printf(markerImageNames[i].c_str()); printf("\n");
     R2Image *marker = new R2Image(markerImageNames[i].c_str());
     verifyImageAllocation(marker);
-    markers.push_back(R2Image::Marker(marker));
+    markers.push_back(*marker);
   }
 
   assert(markers.size() == 4);
@@ -331,6 +331,11 @@ void importMarkerImages(std::vector<R2Image::Marker>& markers, char* marker_fold
 void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<R2Image> &markerImages) {
   // nothing happening with these as of yet
   std::vector<Point> oldMarkerLocations;
+
+  // initialize point locations to (-1, -1) to be able to tell that it is first run
+  for (int i = 0; i < markerImages.size(); i++) {
+    oldMarkerLocations.push_back(Point(-1, -1));
+  }
 
   // iterate through image frames
   for (int i = 0; i < 1; i++) {
@@ -341,7 +346,7 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
     // Find trackers on image
     //dont try this until have succesfully imported
     if (debugMode) printf("Identifying corners on image %d\n", i+1);
-    
+
     image_frame->identifyCorners(markerImages, oldMarkerLocations);
 
     // Write output image
@@ -379,7 +384,7 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
       argv += 3, argc -= 3;
 
       // import marker images
-      std::vector<R2Image::Marker> markers;
+      std::vector<R2Image> markers;
       importMarkerImages(markers, marker_folder_name, marker_base_name);
       if (debugMode) printf("marker images grabbed.\n");    
 

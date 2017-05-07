@@ -29,11 +29,16 @@ identifyCorners(std::vector<R2Image>& markers, std::vector<Point>& oldMarkerLoca
   std::vector<Point> markerLocations;
   findMarkers(markers, markerLocations, oldMarkerLocations);
 
-  // Mark each location
+  
   for (int i = 0; i < markerLocations.size(); i++) {
-    Point& p = markerLocations[i];
+    const Point& p = markerLocations[i];
     printf("Marker %d: (%f, %f)\n", i, p.x, p.y);
+
+    // Mark each location
     drawSquare(p.x, p.y, 10, 0.0, 1.0, 0.0);
+
+    // This will lead to old ones being in there too somewhere, but ddon't want to risk [i] as might crash on first run
+    oldMarkerLocations[i] = p;
   }
 }
 
@@ -48,30 +53,36 @@ findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, 
 
 
     // use oldLocation to improve search speed
-    //MarkerLocation oldLocation = oldMarkerLocations[i];
+    const Point& oldLoc = oldMarkerLocations[i];
+    const int searchWidthRadius = width * 0.3;
+    const int searchHeightRadius = height * 0.3;
 
-    // const int xMin = 250;
-    // const int xMax = width - 220;
-    // const int yMin = 150;
-    // const int yMax = height - 120;
 
-   const int xMin = ((i % 2) * width / 2) + (1 - (i % 2)) * marker.Width() / 2;
-   const int xMax = width / (2 - (i % 2)) - ((i % 2)) * marker.Width() / 2;
-   const int yMin = ((i / 2) * height / 2) + (1 - (i / 2)) * marker.Height() / 2;
-   const int yMax = height / (2 - (i / 2)) - ((i / 2)) * marker.Height() / 2;
+    const bool pastLocExists = oldLoc.x != -1;
+    // initialize search bounds to 20% of image around
+    const int xMin = pastLocExists ? oldLoc.x - searchWidthRadius : 250;
+    const int xMax = pastLocExists ? oldLoc.x + searchWidthRadius : width - 150;
+    const int yMin = pastLocExists ? oldLoc.y - searchHeightRadius : 150;
+    const int yMax = pastLocExists ? oldLoc.y + searchHeightRadius : height - 150;
+
+// divides screen into 4 quadrants
+//    const int xMin = ((i % 2) * width / 2) + (1 - (i % 2)) * marker.Width() / 2;
+//    const int xMax = width / (2 - (i % 2)) - ((i % 2)) * marker.Width() / 2;
+//    const int yMin = ((i / 2) * height / 2) + (1 - (i / 2)) * marker.Height() / 2;
+//    const int yMax = height / (2 - (i / 2)) - ((i / 2)) * marker.Height() / 2;
 
   printf("(%d, %d) -> (%d, %d) \n", xMin, yMin, xMax, yMax);
 
     // Iterate over image
     for (int x = xMin; x < xMax; x++) {
-      printf("Reached row %d... \n", x + 1);
-        printf("%d \n", i);
+     // printf("Reached row %d... \n", x + 1);
+       // printf("%d \n", i);
       for (int y = yMin; y < yMax; y++) {
         // See if point is better match for any of markers
         //Pixel(x,y) = R2Pixel(1,0,0,1); 
         const float ssd = calculateSSD(x, y, marker);
         if (ssd < bestSSD) {
-          printf("Better ssd: %f... \n", ssd);
+          //printf("Better ssd: %f... \n", ssd);
           bestSSD = ssd;
           bestX = x;
           bestY = y;
@@ -80,35 +91,6 @@ findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, 
     }
     printf("MARKER DONE ssd %f\n", bestSSD);
     markerLocations.push_back(Point(bestX, bestY));
-      
-//      for (int x = xMin; x < xMax; x++) {
-//          printf("Reached row %d... \n", x + 1);
-//          printf("%d \n", i);
-//          for (int y = yMin; y < yMax; y++) {
-//              
-//              if ((i == 0) && (x > width / 2 || y > height / 2)) {
-//                  printf("1\n");
-//                  break;
-//              } else if ((i == 1) && (x < width / 2 || y > height / 2)) {
-//                  printf("2\n");
-//                  break;
-//              } else if ((i == 2) && (x > width / 2 || y < height / 2)) {
-//                  printf("3\n");
-//                  break;
-//              } else if ((i == 3) && (x < width / 2 || y < height / 2)) {
-//                  printf("4\n");
-//                  break;
-//              }
-//              // See if point is better match for any of markers
-//              const float ssd = calculateSSD(x, y, marker);
-//              if (ssd < bestSSD) {
-//                  printf("Better ssd: %f... \n", ssd);
-//                  bestSSD = ssd;
-//                  bestX = x;
-//                  bestY = y;
-//              }
-//          }
-//      }
   }
 }
 
