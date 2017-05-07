@@ -34,7 +34,7 @@ identifyCorners(std::vector<R2Image>& markers, std::vector<Point>& oldMarkerLoca
   // Mark each location
   for (int i = 0; i < markerLocations.size(); i++) {
     Point& p = markerLocations[i];
-    drawSquare(p.x, p.y, 10, 0.0, 1.0, 0.0);
+    drawFilledSquare(p.x, p.y, 10, 1.0, 0.0, 0.0);
     oldMarkerLocations[i] = p;
   }
 }
@@ -739,6 +739,20 @@ drawCircle(const int x0, const int y0, const int radius, const float r, const fl
       error -= 2 * x + 1;
     }
   }
+}
+
+void R2Image::
+drawFilledSquare(const int x, const int y, const int reach, const float r, const float g, const float b) {
+    const int xMax = fmin(width - 1, x + reach);
+    const int xMin = fmax(0, x - reach);
+    const int yMax = fmin(width - 1, y + reach);
+    const int yMin = fmax(0, y - reach);
+    
+    for (int x = xMin; x < xMax; x++) {
+        for (int y = yMin; y < yMax; y++) {
+            Pixel(x, y) = R2Pixel(r, g, b, 1);
+        }
+    }
 }
 
 

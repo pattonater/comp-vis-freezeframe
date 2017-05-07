@@ -196,6 +196,7 @@ class R2Image {
 
   // Drawing
   void drawSquare(const int x, const int y, const int reach, const float r, const float g, const float b);
+    void drawFilledSquare(const int x, const int y, const int reach, const float r, const float g, const float b);
   void drawLine(int x0, int y0, int x1, int y1, const float r, const float g, const float b);
   void drawCircle(const int xCenter, const int yCenter, const int radius, const float r, const float g, const float b);
 
