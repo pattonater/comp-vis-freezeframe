@@ -55,18 +55,18 @@ findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, 
       const int d = height / (2 - (i / 2));
       
       // use oldLocation to improve search speed
-      const int searchWidthReach = width * 0.05;
-      const int searchHeightReach = height * 0.05;
+      const int searchWidthReach = width * 0.1;
+      const int searchHeightReach = height * 0.1;
       
       const Point& oldLocation = oldMarkerLocations[i];
       //printf("(%f, %f) \n", oldLocation.x, oldLocation.y);
       
       const bool pastLocExists = oldLocation.x != -1;
       // initialize search bounds to 20% of image around
-      const int xMin = pastLocExists ? oldLocation.x - searchWidthReach : a; //CHANGE TO 0
-      const int xMax = pastLocExists ? oldLocation.x + searchWidthReach : b; //CHANGE TO width
-      const int yMin = pastLocExists ? oldLocation.y - searchHeightReach : c; //CHANGE TO 0
-      const int yMax = pastLocExists ? oldLocation.y + searchHeightReach : d; //CHANGE TO height
+      const int xMin = pastLocExists ? oldLocation.x - searchWidthReach : 0; //CHANGE TO 0
+      const int xMax = pastLocExists ? oldLocation.x + searchWidthReach : width; //CHANGE TO width
+      const int yMin = pastLocExists ? oldLocation.y - searchHeightReach : 0; //CHANGE TO 0
+      const int yMax = pastLocExists ? oldLocation.y + searchHeightReach : height; //CHANGE TO height
       
       // speed optimization: can safely step by an 8th of the marker without missing
       const int xStepSize = marker.Width() / 8;

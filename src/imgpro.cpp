@@ -344,6 +344,7 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
     R2Image *image_frame = new R2Image(inputImageNames[i].c_str());
     verifyImageAllocation(image_frame);
 
+    printf("Image %d...\n", i);
     // Find trackers on image
     //dont try this until have succesfully imported
     if (debugMode) printf("Identifying corners on image %d\n", i+1);
@@ -352,7 +353,7 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
     // Write output image
     writeImage(image_frame, outputImageNames[i].c_str());
 
-    printf("Image %d processed...\n", i);
+    printf("Processed!\n", i);
 
     // clean up memory
     delete image_frame;
