@@ -337,14 +337,17 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
         cornerCoords.push_back(Point(-1, -1));
     }
 
-    printf("Sequence loaded: \n");
+    printf("Sequence loaded. \n");
+
   // iterate through image frames
   for (int i = 0; i < inputImageNames.size(); i++) {
+
+    printf("%.3f%% Complete\r", float(i/inputImageNames.size()));
+
     // allocate image frame
     R2Image *image_frame = new R2Image(inputImageNames[i].c_str());
     verifyImageAllocation(image_frame);
 
-    printf("Image %d...\n", i);
     // Find trackers on image
     //dont try this until have succesfully imported
     if (debugMode) printf("Identifying corners on image %d\n", i+1);
@@ -353,12 +356,12 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
     // Write output image
     writeImage(image_frame, outputImageNames[i].c_str());
 
-    printf("Processed!\n", i);
+    // printf("Processed!\n", i);
 
     // clean up memory
     delete image_frame;
   }
-  printf("Sequence done!\n");
+  printf("\nSequence done!\n");
 }
 
 void processImageSequence(int argc, char **argv, char *input_folder_name) {
