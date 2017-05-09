@@ -342,7 +342,7 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
   // iterate through image frames
   for (int i = 0; i < inputImageNames.size(); i++) {
 
-    printf("\r%.3f%% Complete", float(i/inputImageNames.size()));
+    printf("%.3f%% Complete\n", float(i/inputImageNames.size()));
 
     // allocate image frame
     R2Image *image_frame = new R2Image(inputImageNames[i].c_str());
