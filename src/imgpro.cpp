@@ -175,7 +175,7 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
     printf("Sequence loaded. \n");
 
     // this loop is for timing single vs multithread versions
-    for (int k = 0; k < 1; k++) {
+    for (int k = 0; k < 2; k++) {
     for (int i = 0; i < inputImageNames.size(); i++) {
        cornerCoords[i] = (Point(-1, -1));
     }
