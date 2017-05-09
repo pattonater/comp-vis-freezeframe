@@ -37,6 +37,22 @@ struct Point {
   }
 };
 
+struct PointMatch {
+  Point& a;
+  Point& b;
+
+  PointMatch(Point& a1, Point& b1) : a(a1), b(b1) {}
+};
+
+struct Frame {
+  Point& bottomLeft;
+  Point& bottomRight;
+  Point& topLeft;
+  Point& topRight;
+
+  Frame(Point& bl, Point& br, Point& tl, Point& tr) : bottomLeft(bl), bottomRight(br), topLeft(tl), topRight(tr) {}
+};
+
 struct Feature {
   R2Pixel pixel;
   int x;
@@ -157,7 +173,10 @@ class R2Image {
 
   // Freeze Frame
   void identifyCorners(std::vector<R2Image>& markerImages, std::vector<Point>& oldMarkerLocations);
+  void placeImageInFrame(std::vector<Point>& markerLocations, R2Image& otherImage);
   void findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, std::vector<Point>& oldMarkerLocations);
+  void computeHomographyMatrixWithDLT(const std::vector<PointMatch>& matches, std::vector<double>& homographyMatrix) const;
+  void warpImageIntoFrame(const std::vector<double>& homographyMatrix, R2Image& otherImage, Frame& frame);
   // void* findMarkersThread(void * inputPointer);
 
   Point findImageMatch(const Point& searchOrigin, const float searchWindowPercentage, R2Image& comparisonImage);

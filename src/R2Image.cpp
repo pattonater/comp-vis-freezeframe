@@ -26,6 +26,67 @@ const bool MULTI_THREAD = true;
 // Freeze Frame
 //////////////////////
 void R2Image::
+placeImageInFrame(std::vector<Point>& markerLocations, R2Image& otherImage) {
+  // dependent on order of marker images... potentially fix later
+  Point& markerBottomLeft  = markerLocations[0];
+  Point& markerBottomRight = markerLocations[1];
+  Point& markerTopLeft     = markerLocations[2];
+  Point& markerTopRight    = markerLocations[3];
+
+  Point imageBottomLeft  = Point(0, 0);
+  Point imageBottomRight = Point(otherImage.width, 0);
+  Point imageTopLeft     = Point(0, otherImage.height);
+  Point imageTopRight    = Point(otherImage.width, otherImage.height);
+
+  std::vector<double> H;
+  std::vector<PointMatch> pointMatches;
+
+  pointMatches.push_back(PointMatch(markerBottomLeft, imageBottomLeft));
+  pointMatches.push_back(PointMatch(markerBottomRight, imageBottomRight));
+  pointMatches.push_back(PointMatch(markerTopLeft, imageTopLeft));
+  pointMatches.push_back(PointMatch(markerTopRight, imageTopRight));
+
+  computeHomographyMatrixWithDLT(pointMatches, H);
+
+  Frame frame = Frame(markerBottomLeft, markerBottomRight, markerTopLeft, markerTopRight);
+
+  warpImageIntoFrame(H, otherImage, frame);
+}
+
+void R2Image::
+warpImageIntoFrame(const std::vector<double>& homographyMatrix, R2Image& otherImage, Frame& frame) {
+  int xLower = fmin(frame.topLeft.x, frame.bottomLeft.x);
+  int xUpper = fmax(frame.topRight.x, frame.bottomRight.x) + 1;
+  int yLower = fmin(frame.bottomLeft.y, frame.bottomRight.y);
+  int yUpper = fmax(frame.topLeft.y, frame.topRight.y) + 1;
+
+  for (int i = xLower; i < xUpper; i++) {
+    for (int j =  yLower;  j <= yUpper; j++) {
+      const Point p = transformPoint(i, j, homographyMatrix);
+      const int x0 = p.x;
+      const int y0 = p.y;
+      
+      const int x1 = x0 + 1;
+      const int y1 = y0 + 1;
+
+      if (otherImage.inBounds(x0, y0) && otherImage.inBounds(x1, y1)) {
+        const double alphaX = p.x - x0;
+        const double alphaY = p.y - y0;
+
+        R2Pixel upperHalf = (1 - alphaX) * otherImage.Pixel(x0, y0) + alphaX * otherImage.Pixel(x1, y0);
+        R2Pixel lowerHalf = (1 - alphaX) * otherImage.Pixel(x0, y1) + alphaX * otherImage.Pixel(x1, y1);
+
+        Pixel(i, j) = (1 - alphaY) * upperHalf + alphaY * lowerHalf;
+      } else if (otherImage.inBounds(x0, y0)) {
+        Pixel(i, j) = otherImage.Pixel(x0, y0);
+      } else if (otherImage.inBounds(x1,y1)) {
+        Pixel(i, j) = otherImage.Pixel(x1, y1);
+      }
+    }
+  }
+}
+
+void R2Image::
 identifyCorners(std::vector<R2Image>& markers, std::vector<Point>& oldMarkerLocations) {
    // printf("markers size %lu\n", markers.size());
   // fill markerLocations with matched locations to the marker images
@@ -664,6 +725,90 @@ computeHomographyMatrixWithDLT(const std::vector<FeatureMatch>& matches, std::ve
       }
   } 
 }
+
+void R2Image::
+computeHomographyMatrixWithDLT(const std::vector<PointMatch>& matches, std::vector<double>& homographyMatrix) const {
+  const bool shouldPrint = false;
+
+  const int width = 9;
+  int height = matches.size() * 2;
+
+  // Fill line equations matrix from given point correspondences 
+  double** lineEquations = dmatrix(1, height, 1, width);
+  if (shouldPrint) { printf("Points: \n"); }
+  // Construct matrix A (lineEquations)
+  for (int i = 0; i < height; i += 2) {
+     const int match = i / 2;
+     const PointMatch& pm = matches[match];
+
+     const Point a = pm.a;
+     const Point b = pm.b;
+
+     if (shouldPrint) { printf("(%f, %f) -> (%f, %f) \n", a.x, a.y, b.x, b.y); }
+
+     const double row1[9] = { 0, 0, 0, -a.x, -a.y, -1, b.y * a.x, b.y * a.y, b.y };
+     const double row2[9] = { a.x, a.y, 1, 0, 0, 0, -a.x * b.x, -b.x * a.y, -b.x };
+
+     for (int j = 0; j < 9; j++) {
+        lineEquations[i + 1][j + 1] = row1[j];
+        lineEquations[i + 2][j + 1] = row2[j];
+     }
+  }
+
+  if (shouldPrint) {
+  printf("\n A: \n");
+  for (int i = 0; i < height; i++) {
+    for (int j = 0; j < width; j++) {
+      printf("%f ", lineEquations[i+1][j+1]);
+    }
+    printf("\n");
+  }
+  }
+  
+  // compute the SVD
+  double** nullspaceMatrix = dmatrix(1, 10, 1, 10);
+  const int numSingularValues = 9;
+	double singularValues[numSingularValues + 1]; // 1..numSingularValues
+   
+	svdcmp(lineEquations, height, width, singularValues, nullspaceMatrix);
+
+  if (shouldPrint) {
+    printf("\n Singular Values: \n");
+    for (int i = 1; i <= numSingularValues; i++) {
+       printf("%f ", singularValues[i]);
+    }
+    printf("\n");
+
+     printf("\n Nullspace Matrix: \n");
+    for (int i = 0; i < 10; i++) {
+      for (int j = 0; j < 10; j++) {
+        printf("%f ", nullspaceMatrix[i + 1][j + 1]);
+      }
+      printf("\n");
+    }
+  }
+
+  // Find row of smallest singular value 
+  int solutionCol = 0;
+  for (int i = 1; i < numSingularValues; i++) {
+    if (singularValues[i + 1] < singularValues[solutionCol + 1]) {
+      solutionCol = i;
+    }
+  }
+
+  // Map solution column to 3x3 solution matrix (outdated description)
+  for (int i = 0; i < 9; i++) {
+    homographyMatrix.push_back(nullspaceMatrix[i + 1][solutionCol + 1]);
+  }
+
+  if (shouldPrint) {
+      printf("\n H: \n");
+      for (int i = 0; i < 3; i++) {
+        printf("%f, %f, %f \n", homographyMatrix[3 * i], homographyMatrix[3 * i + 1], homographyMatrix[3 * i + 2]);
+      }
+  } 
+}
+
 
 bool R2Image::
 checkHomographySimilarity(const FeatureMatch& match, const std::vector<double>& homographyMatrix) const {

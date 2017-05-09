@@ -329,7 +329,7 @@ void importMarkerImages(std::vector<R2Image>& markerImages, char* marker_folder_
 //  assert(markerImages.size() == 4);
 }
 
-void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<R2Image> &markerImages) {
+void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<R2Image> &markerImages, R2Image* otherImage) {
   // nothing happening with these as of yet
   std::vector<Point> cornerCoords;
     
@@ -352,6 +352,7 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
     //dont try this until have succesfully imported
     if (debugMode) printf("Identifying corners on image %d\n", i+1);
     image_frame->identifyCorners(markerImages, cornerCoords);
+    image_frame->placeImageInFrame(cornerCoords, *otherImage);
 
     // Write output image
     writeImage(image_frame, outputImageNames[i].c_str());
@@ -385,10 +386,11 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
   // Parse arguments and perform operations
   while (argc > 0) {
     if (!strcmp(*argv, "-harryPotterize")) {
-      CheckOption(*argv, argc, 3);
+      CheckOption(*argv, argc, 4);
       char* marker_folder_name = argv[1];
       char* marker_base_name = argv[2];
-      argv += 3, argc -= 3;
+      R2Image* other_image = new R2Image(argv[3]);
+      argv += 4, argc -= 4;
 
       // import marker images
       std::vector<R2Image> markerImages;
@@ -401,7 +403,7 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
       // return;  
 
       // do the magic
-      harryPotterizeSequence(inputImageNames, outputImageNames, markerImages);
+      harryPotterizeSequence(inputImageNames, outputImageNames, markerImages, other_image);
     }
     else {
       // Unrecognized program argument

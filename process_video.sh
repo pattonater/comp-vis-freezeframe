@@ -26,6 +26,7 @@ fps=24
 inputVideo="input/screen_corners.m4v"
 markersFolder="input/markers"
 markerBaseName="marker"
+inputPhoto="input/d_face1.jpg"
 
 # remove any files left over from previous runs
 if test -d $inputFolder; then 
@@ -45,7 +46,7 @@ ffmpeg -i $inputVideo -vf fps=$fps $inputFolder/$imageBaseName%d.jpg
 
 # run harryPotterize on folder
 src/imgpro $inputFolder $imageBaseName $outputFolder \
-    -harryPotterize $markersFolder $markerBaseName
+    -harryPotterize $markersFolder $markerBaseName $inputPhoto
 
 # make video out of output images
 ffmpeg -framerate $fps -i $outputFolder/$imageBaseName%d.jpg $outputVideo
@@ -53,7 +54,3 @@ ffmpeg -framerate $fps -i $outputFolder/$imageBaseName%d.jpg $outputVideo
 # erase image stills
 rm -r $inputFolder
 rm -r $outputFolder
-
-
-
-
