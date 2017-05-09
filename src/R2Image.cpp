@@ -10,7 +10,7 @@
 #include "svd.h"
 #include <cmath>
 #include <vector>
-// #include <pthread.h>
+#include <pthread.h>
 // #include <stdlib.h>     /* srand, rand */
 // #include <time.h>       /* time */
 
@@ -20,7 +20,7 @@
 //////////////////////
 bool R2Image:: inBounds(const Point p) const { return inBounds(p.x, p.y); }
 bool R2Image:: inBounds(const int x, const int y) const { return (x >= 0) && (x < width) && (y >= 0) && (y < height); }
-
+const bool MULTI_THREAD = true;
 
 ///////////////////////
 // Freeze Frame
@@ -40,96 +40,233 @@ identifyCorners(std::vector<R2Image>& markers, std::vector<Point>& oldMarkerLoca
   }
 }
 
-void R2Image::
-findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, std::vector<Point>& oldMarkerLocations) {
-  for (int i = 0; i < markers.size(); i++) {
-    R2Image& marker = markers[i];
+void* globalHelper(void * inputPointer) {
+  // printf("entering globalHelper\n");
+  // speed optimization: can safely step by an 8th of the marker without missing
 
-    // speed optimization: can safely step by an 8th of the marker without missing
-    int xStepSize = marker.Width() / 8;
-    int yStepSize = marker.Height() / 8;
+  R2Image::Marker* markerPointer = (R2Image::Marker*)inputPointer;
 
-    const int FINE_X = xStepSize / 2;
-    const int FINE_Y = yStepSize / 2;
+  R2Image*             frame          = markerPointer->frame;
+  R2Image*             marker         = markerPointer->marker;
+  Point*               markerLocation = markerPointer->markerLocation; 
+  Point*               oldLocation    = markerPointer->oldMarkerLocation;
+  std::vector<Point*>* locs           = markerPointer->markerLocs;
+  int                  i              = markerPointer->index;      
 
-    float bestSSD = marker.Width() * marker.Height() * 3;
-      int bestX = -1;
-      int bestY = -1;
+  size_t width  = frame->Width();
+  size_t height = frame->Height();
 
-      // remove for final
-      const int a = ((i % 2) * width / 2);
-      const int b = width / (2 - (i % 2));
-      const int c = ((i / 2) * height / 2);
-      const int d = height / (2 - (i / 2));
-      
-      // use oldLocation to improve search speed
-      const int searchWidthReach = width * 0.1;
-      const int searchHeightReach = height * 0.1;
-      
-      const Point& oldLocation = oldMarkerLocations[i];
-      //printf("(%f, %f) \n", oldLocation.x, oldLocation.y);
-      
-      const bool pastLocExists = oldLocation.x != -1;
-      // initialize search bounds to 20% of image around
-      int xMin = pastLocExists ? oldLocation.x - searchWidthReach : 0; //CHANGE TO 0
-      int xMax = pastLocExists ? oldLocation.x + searchWidthReach : width; //CHANGE TO width
-      int yMin = pastLocExists ? oldLocation.y - searchHeightReach : 0; //CHANGE TO 0
-      int yMax = pastLocExists ? oldLocation.y + searchHeightReach : height; //CHANGE TO height
-      
+  int xStepSize = marker->Width() / 8;
+  int yStepSize = marker->Height() / 8;
 
-    // Iterate over image
-    while (xStepSize != 0) {
-      // printf("xStep: %d    yStep: %d\n", xStepSize, yStepSize);
-      for (int x = xMin; x < xMax; x += xStepSize) {
-        //printf("Reached row %d... \n", x + 1);
-        for (int y = yMin; y < yMax; y += yStepSize) {
-          // See if point is better match for any of markers
-          const float ssd = calculateSSD(x, y, marker);
-          if (ssd < bestSSD) {
-              //printf("Marker %d Better ssd: %f... \n", i + 1, ssd);
-              //printf("Better ssd: %f... \n", ssd);
-              bestSSD = ssd;
-              bestX = x;
-              bestY = y;
-          }
+  int FINE_X = xStepSize * 2;
+  int FINE_Y = yStepSize * 2;
+
+  float bestSSD = marker->Width() * marker->Height() * 3;
+    int bestX = -1;
+    int bestY = -1;
+
+    // remove for final
+    // const int a = ((i % 2) * width / 2);
+    // const int b = width / (2 - (i % 2));
+    // const int c = ((i / 2) * height / 2);
+    // const int d = height / (2 - (i / 2));
+    
+    // use oldLocation to improve search speed
+    const int searchWidthReach = width * 0.1;
+    const int searchHeightReach = height * 0.1;
+    
+    // const Point& oldLocation = oldMarkerLocations[i];
+    //printf("(%f, %f) \n", oldLocation.x, oldLocation.y);
+    
+    const bool pastLocExists = oldLocation->x != -1;
+    // initialize search bounds to 20% of image around
+    int xMin = pastLocExists ? oldLocation->x - searchWidthReach : 0; //CHANGE TO 0
+    int xMax = pastLocExists ? oldLocation->x + searchWidthReach : width; //CHANGE TO width
+    int yMin = pastLocExists ? oldLocation->y - searchHeightReach : 0; //CHANGE TO 0
+    int yMax = pastLocExists ? oldLocation->y + searchHeightReach : height; //CHANGE TO height
+    
+  // printf("setup complete\n");
+
+  // Iterate over image
+  while (xStepSize != 0) {
+    // printf("xStep: %d    yStep: %d\n", xStepSize, yStepSize);
+    for (int x = xMin; x < xMax; x += xStepSize) {
+      //printf("Reached row %d... \n", x + 1);
+      for (int y = yMin; y < yMax; y += yStepSize) {
+        // See if point is better match for any of markers
+        const float ssd = frame->calculateSSD(x, y, *marker);
+        if (ssd < bestSSD) {
+            //printf("Marker %d Better ssd: %f... \n", i + 1, ssd);
+            //printf("Better ssd: %f... \n", ssd);
+            bestSSD = ssd;
+            bestX = x;
+            bestY = y;
         }
-      }
-
-      if (xStepSize == 1 && yStepSize == 1) {
-        xStepSize = 0;
-        yStepSize = 0;
-      } else {
-        xStepSize = (xStepSize > 1) ? xStepSize / 2 : 1;
-        yStepSize = (yStepSize > 1) ? yStepSize / 2 : 1;
-        xMin = fmax(0, bestX - FINE_X);
-        xMax = fmin(width, bestX + FINE_X);
-        yMin = fmax(0, bestY - FINE_Y);
-        yMax = fmin(height, bestY + FINE_Y);
       }
     }
 
-    // make new search window around best SSD 
-    // TODO: will this give us issues re: local minima?
-    // TODO: recursive descent
-    // const size_t lowX = fmax(0, bestX - FINE_X);
-    // const size_t hiX  = fmin (width, bestX + FINE_X);
-    // const size_t lowY = fmax(0, bestY - FINE_Y);
-    // const size_t hiY  = fmin (height, bestY + FINE_Y);
- 
-    // for (int x = lowX; x < hiX; ++ x) {
-    //   for (int y = lowY; y < hiY; ++y) {
-    //       // See if point is better match for any of markers
-    //     const float ssd = calculateSSD(x, y, marker);
-    //     if (ssd < bestSSD) {
-    //       //printf("Marker %d Better ssd: %f... \n", i + 1, ssd);      
-    //       bestSSD = ssd;
-    //       bestX = x;
-    //       bestY = y;
-    //     }
-    //   }
-    // }
+    if (xStepSize == 1 && yStepSize == 1) {
+      xStepSize = 0;
+      yStepSize = 0;
+    } else {
+      xStepSize = (xStepSize > 1) ? xStepSize / 2 : 1;
+      yStepSize = (yStepSize > 1) ? yStepSize / 2 : 1;
+      FINE_X = xStepSize * 2;
+      FINE_Y = yStepSize * 2;
 
-    markerLocations.push_back(Point(bestX, bestY));
+      xMin = fmax(0, bestX - FINE_X);
+      xMax = fmin(width, bestX + FINE_X);
+      yMin = fmax(0, bestY - FINE_Y);
+      yMax = fmin(height, bestY + FINE_Y);
+    }
+  }
+
+  // make new search window around best SSD 
+  // TODO: will this give us issues re: local minima?
+  // TODO: recursive descent
+  // const size_t lowX = fmax(0, bestX - FINE_X);
+  // const size_t hiX  = fmin (width, bestX + FINE_X);
+  // const size_t lowY = fmax(0, bestY - FINE_Y);
+  // const size_t hiY  = fmin (height, bestY + FINE_Y);
+
+  // for (int x = lowX; x < hiX; ++ x) {
+  //   for (int y = lowY; y < hiY; ++y) {
+  //       // See if point is better match for any of markers
+  //     const float ssd = calculateSSD(x, y, marker);
+  //     if (ssd < bestSSD) {
+  //       //printf("Marker %d Better ssd: %f... \n", i + 1, ssd);      
+  //       bestSSD = ssd;
+  //       bestX = x;
+  //       bestY = y;
+  //     }
+  //   }
+  // }
+
+  // printf("match found\n");
+  (*locs)[i] = new Point(bestX, bestY);
+  // printf("wrote marker location\n");
+  return NULL;
+}
+
+
+void R2Image::
+findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, std::vector<Point>& oldMarkerLocations) {
+  if (MULTI_THREAD) {
+    std::vector<pthread_t> pth;
+    std::vector<Point*> locs;
+
+    for (int i = 0; i < markers.size(); i++) {
+      pthread_t p;
+
+      pth.push_back(p);
+      locs.push_back(new Point(-1, -1));
+
+      pthread_create(&pth[i], NULL, globalHelper, 
+        (void*)(new Marker(this, &markers[i], &markerLocations[i], &oldMarkerLocations[i], &locs, i)));
+    }
+
+    for (size_t i = 0; i < 4; ++i) {
+      // printf("joining thread %d\n", i);
+      pthread_join(pth[i], NULL);
+      // printf("joined thread %d\n", i);
+      markerLocations.push_back(*(locs[i]));
+      assert(markerLocations[i].x != -1);
+    }
+  } 
+  else 
+  {
+    for (size_t i = 0; i < markers.size(); ++ i) {
+      // speed optimization: can safely step by an 8th of the marker without missing
+      R2Image& marker = markers[i];
+      int xStepSize = marker.Width() / 8;
+      int yStepSize = marker.Height() / 8;
+
+      int FINE_X = xStepSize * 2;
+      int FINE_Y = yStepSize * 2;
+
+      float bestSSD = marker.Width() * marker.Height() * 3;
+        int bestX = -1;
+        int bestY = -1;
+
+        // remove for final
+        const int a = ((i % 2) * width / 2);
+        const int b = width / (2 - (i % 2));
+        const int c = ((i / 2) * height / 2);
+        const int d = height / (2 - (i / 2));
+        
+        // use oldLocation to improve search speed
+        const int searchWidthReach = width * 0.1;
+        const int searchHeightReach = height * 0.1;
+        
+        const Point& oldLocation = oldMarkerLocations[i];
+        //printf("(%f, %f) \n", oldLocation.x, oldLocation.y);
+        
+        const bool pastLocExists = oldLocation.x != -1;
+        // initialize search bounds to 20% of image around
+        int xMin = pastLocExists ? oldLocation.x - searchWidthReach : 0; //CHANGE TO 0
+        int xMax = pastLocExists ? oldLocation.x + searchWidthReach : width; //CHANGE TO width
+        int yMin = pastLocExists ? oldLocation.y - searchHeightReach : 0; //CHANGE TO 0
+        int yMax = pastLocExists ? oldLocation.y + searchHeightReach : height; //CHANGE TO height
+        
+
+      // Iterate over image
+      while (xStepSize != 0) {
+        // printf("xStep: %d    yStep: %d\n", xStepSize, yStepSize);
+        for (int x = xMin; x < xMax; x += xStepSize) {
+          //printf("Reached row %d... \n", x + 1);
+          for (int y = yMin; y < yMax; y += yStepSize) {
+            // See if point is better match for any of markers
+            const float ssd = calculateSSD(x, y, marker);
+            if (ssd < bestSSD) {
+                //printf("Marker %d Better ssd: %f... \n", i + 1, ssd);
+                //printf("Better ssd: %f... \n", ssd);
+                bestSSD = ssd;
+                bestX = x;
+                bestY = y;
+            }
+          }
+        }
+
+        if (xStepSize == 1 && yStepSize == 1) {
+          xStepSize = 0;
+          yStepSize = 0;
+        } else {
+          xStepSize = (xStepSize > 1) ? xStepSize / 2 : 1;
+          yStepSize = (yStepSize > 1) ? yStepSize / 2 : 1;
+          FINE_X = xStepSize * 2;
+          FINE_Y = yStepSize * 2;
+
+          xMin = fmax(0, bestX - FINE_X);
+          xMax = fmin(width, bestX + FINE_X);
+          yMin = fmax(0, bestY - FINE_Y);
+          yMax = fmin(height, bestY + FINE_Y);
+        }
+      }
+
+      // make new search window around best SSD 
+      // TODO: will this give us issues re: local minima?
+      // TODO: recursive descent
+      // const size_t lowX = fmax(0, bestX - FINE_X);
+      // const size_t hiX  = fmin (width, bestX + FINE_X);
+      // const size_t lowY = fmax(0, bestY - FINE_Y);
+      // const size_t hiY  = fmin (height, bestY + FINE_Y);
+   
+      // for (int x = lowX; x < hiX; ++ x) {
+      //   for (int y = lowY; y < hiY; ++y) {
+      //       // See if point is better match for any of markers
+      //     const float ssd = calculateSSD(x, y, marker);
+      //     if (ssd < bestSSD) {
+      //       //printf("Marker %d Better ssd: %f... \n", i + 1, ssd);      
+      //       bestSSD = ssd;
+      //       bestX = x;
+      //       bestY = y;
+      //     }
+      //   }
+      // }
+
+      markerLocations.push_back(Point(bestX, bestY));
+    }
   }
 }
 
