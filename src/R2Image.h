@@ -104,6 +104,7 @@ struct FeatureMatch {
 };
 
 
+
 // Class definition
 
 #include <vector>
@@ -141,9 +142,23 @@ class R2Image {
   // show how SVD works
   void svdTest();
 
+  struct Marker {
+    R2Image* frame;
+    R2Image* marker;
+    Point* markerLocation; 
+    Point* oldMarkerLocation;
+    std::vector<Point*>* markerLocs;
+    int index;
+
+    Marker(R2Image* f, R2Image* m, Point* l, Point* o, std::vector<Point*>* locs, int i)
+    :frame(f), marker(m), markerLocation(l), oldMarkerLocation(o), markerLocs(locs), index(i) {}
+  };
+
+
   // Freeze Frame
   void identifyCorners(std::vector<R2Image>& markerImages, std::vector<Point>& oldMarkerLocations);
   void findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, std::vector<Point>& oldMarkerLocations);
+  // void* findMarkersThread(void * inputPointer);
 
   Point findImageMatch(const Point& searchOrigin, const float searchWindowPercentage, R2Image& comparisonImage);
 

@@ -18,7 +18,7 @@ IMGPRO_OBJS=$(IMGPRO_SRCS:.cpp=.o)
 #
 
 CC=g++
-CPPFLAGS=-Wall -I. -Ijpeg/linux-src -g -DUSE_JPEG 
+CPPFLAGS=-Wall -I. -Ijpeg/linux-src -g -DUSE_JPEG -lpthread
 LDFLAGS=-g
 
 
