@@ -165,39 +165,56 @@ void importMarkerImages(std::vector<R2Image>& markerImages, char* marker_folder_
 //  assert(markerImages.size() == 4);
 }
 
-void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<R2Image> &markerImages) {
-  // nothing happening with these as of yet
+void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<R2Image> &markerImages, R2Image* otherImage) {
+  // initalize to (-1, -1) so we can tell they havent been set yet
   std::vector<Point> cornerCoords;
-    
     for (int i = 0; i < inputImageNames.size(); i++) {
         cornerCoords.push_back(Point(-1, -1));
     }
 
     printf("Sequence loaded. \n");
 
+    // this loop is for timing single vs multithread versions
+    for (int k = 0; k < 1; k++) {
+    for (int i = 0; i < inputImageNames.size(); i++) {
+       cornerCoords[i] = (Point(-1, -1));
+    }
+    if (k == 0) {
+        printf("Single thread:\n");
+      } else {
+        printf("Multi threaded:\n");
+      }
+
+    // regular stuff
+     
     Timer outerTimer;
     outerTimer.start();
 
     Timer innerTimer;
   // iterate through image frames
   for (int i = 0; i < inputImageNames.size(); i++) {
-    printf("%.3f%% Complete\n", float(i) / float(inputImageNames.size()));
+    //printf("%.3f%% Complete\n", float(i) / float(inputImageNames.size()));
 
     // allocate image frame
     R2Image *image_frame = new R2Image(inputImageNames[i].c_str());
     verifyImageAllocation(image_frame);
 
-    image_frame->setMultiThread(false);
-    innerTimer.start();
-    // Find trackers on image
-    image_frame->identifyCorners(markerImages, cornerCoords);
-    printf("Image %d corners found...%d ms \n", i+1, innerTimer.elapsedTime());
+    // set mode for timing comparison
+    if (k == 0) {
+        image_frame->setMultiThread(false);
+      } else {
+        image_frame->setMultiThread(true);
+      }
 
-    image_frame->setMultiThread(true);
     innerTimer.start();
     // Find trackers on image
     image_frame->identifyCorners(markerImages, cornerCoords);
-    printf("Image %d corners found multithread...%d ms \n", i+1, innerTimer.elapsedTime());
+   // printf("Image %d corners found ...%d ms \n", i+1, innerTimer.elapsedTime());
+
+    innerTimer.start();
+    image_frame->placeImageInFrame(cornerCoords, *otherImage);
+    //printf("Image %d image warped in...%d ms \n", i+1, innerTimer.elapsedTime());
+
 
     // Write output image
     writeImage(image_frame, outputImageNames[i].c_str());
@@ -208,6 +225,7 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
     delete image_frame;
   }
   printf("\nSequence done! %lu frames %d seconds\n", inputImageNames.size(), outerTimer.elapsedTime() / 1000);
+  }
 }
 
 void processImageSequence(int argc, char **argv, char *input_folder_name) {
@@ -231,10 +249,11 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
   // Parse arguments and perform operations
   while (argc > 0) {
     if (!strcmp(*argv, "-harryPotterize")) {
-      CheckOption(*argv, argc, 3);
+      CheckOption(*argv, argc, 4);
       char* marker_folder_name = argv[1];
       char* marker_base_name = argv[2];
-      argv += 3, argc -= 3;
+      R2Image* other_image = new R2Image(argv[3]);
+      argv += 4, argc -= 4;
 
       // import marker images
       std::vector<R2Image> markerImages;
@@ -247,7 +266,7 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
       // return;  
 
       // do the magic
-      harryPotterizeSequence(inputImageNames, outputImageNames, markerImages);
+      harryPotterizeSequence(inputImageNames, outputImageNames, markerImages, other_image);
     }
     else {
       // Unrecognized program argument
