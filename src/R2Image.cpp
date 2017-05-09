@@ -20,7 +20,13 @@
 //////////////////////
 bool R2Image:: inBounds(const Point p) const { return inBounds(p.x, p.y); }
 bool R2Image:: inBounds(const int x, const int y) const { return (x >= 0) && (x < width) && (y >= 0) && (y < height); }
-const bool MULTI_THREAD = true;
+bool MULTI_THREAD = true;
+
+void R2Image::
+setMultiThread(bool mode) {
+  MULTI_THREAD = mode;
+}
+
 
 ///////////////////////
 // Freeze Frame

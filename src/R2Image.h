@@ -159,6 +159,7 @@ class R2Image {
   void identifyCorners(std::vector<R2Image>& markerImages, std::vector<Point>& oldMarkerLocations);
   void findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, std::vector<Point>& oldMarkerLocations);
   // void* findMarkersThread(void * inputPointer);
+  void setMultiThread(bool mode);
 
   Point findImageMatch(const Point& searchOrigin, const float searchWindowPercentage, R2Image& comparisonImage);
 

@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include "Timer.cpp"
 #include "R2/R2.h"
 #include "R2Pixel.h"
 #include "R2Image.h"
@@ -71,61 +72,6 @@ CheckOption(char *option, int argc, int minargc)
   }
 }
 
-
-
-// static int
-// ReadCorrespondences(char *filename, R2Segment *&source_segments, R2Segment *&target_segments, int& nsegments)
-// {
-//   // Open file
-//   FILE *fp = fopen(filename, "r");
-//   if (!fp) {
-//     fprintf(stderr, "Unable to open correspondences file %s\n", filename);
-//     exit(-1);
-//   }
-
-//   // Read number of segments
-//   if (fscanf(fp, "%d", &nsegments) != 1) {
-//     fprintf(stderr, "Unable to read correspondences file %s\n", filename);
-//     exit(-1);
-//   }
-
-//   // Allocate arrays for segments`
-//   source_segments = new R2Segment [ nsegments ];
-//   target_segments = new R2Segment [ nsegments ];
-//   if (!source_segments || !target_segments) {
-//     fprintf(stderr, "Unable to allocate correspondence segments for %s\n", filename);
-//     exit(-1);
-//   }
-
-//   // Read segments
-//   for (int i = 0; i <  nsegments; i++) {
-
-//     // Read source segment
-//     double sx1, sy1, sx2, sy2;
-//     if (fscanf(fp, "%lf%lf%lf%lf", &sx1, &sy1, &sx2, &sy2) != 4) {
-//       fprintf(stderr, "Error reading correspondence %d out of %d\n", i, nsegments);
-//       exit(-1);
-//     }
-
-//     // Read target segment
-//     double tx1, ty1, tx2, ty2;
-//     if (fscanf(fp, "%lf%lf%lf%lf", &tx1, &ty1, &tx2, &ty2) != 4) {
-//       fprintf(stderr, "Error reading correspondence %d out of %d\n", i, nsegments);
-//       exit(-1);
-//     }
-
-//     // Add segments to list
-//     source_segments[i] = R2Segment(sx1, sy1, sx2, sy2);
-//     target_segments[i] = R2Segment(tx1, ty1, tx2, ty2);
-//   }
-
-//   // Close file
-//   fclose(fp);
-
-//   // Return success
-//   return 1;
-// }
-
 ////////////////////////////
 // Image Processing Helpers
 ////////////////////////////
@@ -150,6 +96,208 @@ bool checkFileExistance(const std::string& file_name) {
   struct stat buffer;
   return (stat(file_name.c_str(), &buffer) == 0);
 }
+
+
+
+////////////////////////////
+// Image Sequence Processing
+////////////////////////////
+
+bool debugMode = false;
+
+// overloaded version. Finds images in a single file given a base name structure
+void grabImageNames(std::vector<std::string>& imageNames, char *folder_name, char *base_name) {
+  // printf("grabbing marker image names...\n");
+  printf("\n");
+  const int maxNumberImages = 50;
+
+  const std::string nameBase = std::string(folder_name) + "/" + std::string(base_name);
+  
+  for( int i = 1; i < maxNumberImages; i++) {
+    const std::string name = nameBase + std::to_string(i) + ".jpg";
+
+    bool validFileName = checkFileExistance(name);
+    // exits loop for first invalid-numbered file
+    if (!validFileName) { break; }
+
+    //printf("%s \n", inputName.c_str());
+    imageNames.push_back(name);
+
+  }
+  // printf("marker names grabbed.\n");
+}
+
+
+void grabImageNames(std::vector<std::string>& inputImageNames, std::vector<std::string>& outputImageNames, char *input_folder_name, char *image_base_name, char *output_folder_name) {
+  const int maxNumberImages = 50;
+
+  const std::string inputNameBase = std::string(input_folder_name) + "/" + std::string(image_base_name);
+  const std::string outputNameBase = std::string(output_folder_name) + "/" + std::string(image_base_name);
+
+
+  for( int i = 1; i < maxNumberImages; i++) {
+    const std::string inputName = inputNameBase + std::to_string(i) + ".jpg";
+
+    bool validFileName = checkFileExistance(inputName);
+
+    // this is how you exit the loop (once you get to an invalid file name)
+    if (!validFileName) { break; } 
+
+    std::string outputName = outputNameBase + std::to_string(i) + ".jpg";
+
+    inputImageNames.push_back(inputName);
+    outputImageNames.push_back(outputName);
+  }
+}
+
+void importMarkerImages(std::vector<R2Image>& markerImages, char* marker_folder_name, char* marker_base_name) {
+  std::vector<std::string> markerImageNames;
+  grabImageNames(markerImageNames, marker_folder_name, marker_base_name);
+
+  // import marker images
+  for (size_t i = 0; i < markerImageNames.size(); ++i) {
+    //printf(markerImageNames[i].c_str()); printf("\n");
+    R2Image *marker = new R2Image(markerImageNames[i].c_str());
+    verifyImageAllocation(marker);
+    markerImages.push_back(*marker);
+  }
+
+//  assert(markerImages.size() == 4);
+}
+
+void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<R2Image> &markerImages) {
+  // nothing happening with these as of yet
+  std::vector<Point> cornerCoords;
+    
+    for (int i = 0; i < inputImageNames.size(); i++) {
+        cornerCoords.push_back(Point(-1, -1));
+    }
+
+    printf("Sequence loaded. \n");
+
+    Timer outerTimer;
+    outerTimer.start();
+
+    Timer innerTimer;
+  // iterate through image frames
+  for (int i = 0; i < inputImageNames.size(); i++) {
+    printf("%.3f%% Complete\n", float(i) / float(inputImageNames.size()));
+
+    // allocate image frame
+    R2Image *image_frame = new R2Image(inputImageNames[i].c_str());
+    verifyImageAllocation(image_frame);
+
+    image_frame->setMultiThread(false);
+    innerTimer.start();
+    // Find trackers on image
+    image_frame->identifyCorners(markerImages, cornerCoords);
+    printf("Image %d corners found...%d ms \n", i+1, innerTimer.elapsedTime());
+
+    image_frame->setMultiThread(true);
+    innerTimer.start();
+    // Find trackers on image
+    image_frame->identifyCorners(markerImages, cornerCoords);
+    printf("Image %d corners found multithread...%d ms \n", i+1, innerTimer.elapsedTime());
+
+    // Write output image
+    writeImage(image_frame, outputImageNames[i].c_str());
+
+    // printf("Processed!\n", i);
+
+    // clean up memory
+    delete image_frame;
+  }
+  printf("\nSequence done! %lu frames %d seconds\n", inputImageNames.size(), outerTimer.elapsedTime() / 1000);
+}
+
+void processImageSequence(int argc, char **argv, char *input_folder_name) {
+  if (debugMode) printf("processing image sequence...\n");
+  char *image_base_name = *argv; argv++, argc--;
+  char *output_folder_name = *argv; argv++, argc--;
+  
+  if (debugMode) printf("pulled out strings from input.\n");
+
+  // extract image names
+  std::vector<std::string> inputImageNames;
+  std::vector<std::string> outputImageNames;
+  grabImageNames(inputImageNames, outputImageNames, input_folder_name, image_base_name, output_folder_name);
+  assert(inputImageNames.size() == outputImageNames.size());
+
+  // break if no images
+  if (inputImageNames.size() <= 0) return;
+
+  if (debugMode) printf("Grabbed %lu image names \n", inputImageNames.size());
+
+  // Parse arguments and perform operations
+  while (argc > 0) {
+    if (!strcmp(*argv, "-harryPotterize")) {
+      CheckOption(*argv, argc, 3);
+      char* marker_folder_name = argv[1];
+      char* marker_base_name = argv[2];
+      argv += 3, argc -= 3;
+
+      // import marker images
+      std::vector<R2Image> markerImages;
+      importMarkerImages(markerImages, marker_folder_name, marker_base_name);
+      if (debugMode) printf("marker images grabbed.\n");    
+
+      // for (int i = 0; i < markerImages.size(); i++) {
+      //     writeImage(&markerImages[i], outputImageNames[i].c_str());
+      // }
+      // return;  
+
+      // do the magic
+      harryPotterizeSequence(inputImageNames, outputImageNames, markerImages);
+    }
+    else {
+      // Unrecognized program argument
+      fprintf(stderr, "image: invalid option: %s\n", *argv);
+      ShowUsage();
+    }
+  }
+}
+
+
+
+
+
+//////////////////
+/// Main 
+/////////////////
+
+int
+main(int argc, char **argv)
+{
+  // Look for help
+    for (int i = 0; i < argc; i++) {
+      if (!strcmp(argv[i], "-help")) {
+        ShowUsage();
+      }
+	    if (!strcmp(argv[i], "-svdTest")) {
+        R2Image *image = new R2Image();
+	      image->testDLT();
+	      return 0;
+      }
+    }
+
+  // Read input filename
+  if (argc < 3)  ShowUsage();
+  argv++, argc--; // First argument is program name
+  char *input_name = *argv; argv++, argc--;
+  
+  // This could probably be made lighter weight by just looking at last 3 characters of char*
+  std::string input_string(input_name);
+  bool inputIsImage = input_string.find(".jpg") != std::string::npos;
+
+  if (inputIsImage) {
+    //processImage(argc, argv, input_name);
+  } else {
+    processImageSequence(argc, argv, input_name);
+  }
+
+  return EXIT_SUCCESS;
+}
+
 
 
 ////////////////////////////
@@ -260,196 +408,6 @@ void processImage(int argc, char **argv, char *input_image_name) {
 
   // Delete image
   delete image;
-}
-
-
-////////////////////////////
-// Image Sequence Processing
-////////////////////////////
-
-bool debugMode = false;
-
-// overloaded version. Finds images in a single file given a base name structure
-void grabImageNames(std::vector<std::string>& imageNames, char *folder_name, char *base_name) {
-  // printf("grabbing marker image names...\n");
-  printf("\n");
-  const int maxNumberImages = 50;
-
-  const std::string nameBase = std::string(folder_name) + "/" + std::string(base_name);
-  
-  for( int i = 1; i < maxNumberImages; i++) {
-    const std::string name = nameBase + std::to_string(i) + ".jpg";
-
-    bool validFileName = checkFileExistance(name);
-    // exits loop for first invalid-numbered file
-    if (!validFileName) { break; }
-
-    //printf("%s \n", inputName.c_str());
-    imageNames.push_back(name);
-
-  }
-  // printf("marker names grabbed.\n");
-}
-
-
-void grabImageNames(std::vector<std::string>& inputImageNames, std::vector<std::string>& outputImageNames, char *input_folder_name, char *image_base_name, char *output_folder_name) {
-  const int maxNumberImages = 50;
-
-  const std::string inputNameBase = std::string(input_folder_name) + "/" + std::string(image_base_name);
-  const std::string outputNameBase = std::string(output_folder_name) + "/" + std::string(image_base_name);
-
-
-  for( int i = 1; i < maxNumberImages; i++) {
-    const std::string inputName = inputNameBase + std::to_string(i) + ".jpg";
-
-    bool validFileName = checkFileExistance(inputName);
-
-    // this is how you exit the loop (once you get to an invalid file name)
-    if (!validFileName) { break; } 
-
-    std::string outputName = outputNameBase + std::to_string(i) + ".jpg";
-
-    inputImageNames.push_back(inputName);
-    outputImageNames.push_back(outputName);
-  }
-}
-
-void importMarkerImages(std::vector<R2Image>& markerImages, char* marker_folder_name, char* marker_base_name) {
-  std::vector<std::string> markerImageNames;
-  grabImageNames(markerImageNames, marker_folder_name, marker_base_name);
-
-  // import marker images
-  for (size_t i = 0; i < markerImageNames.size(); ++i) {
-    //printf(markerImageNames[i].c_str()); printf("\n");
-    R2Image *marker = new R2Image(markerImageNames[i].c_str());
-    verifyImageAllocation(marker);
-    markerImages.push_back(*marker);
-  }
-
-//  assert(markerImages.size() == 4);
-}
-
-void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<R2Image> &markerImages) {
-  // nothing happening with these as of yet
-  std::vector<Point> cornerCoords;
-    
-    for (int i = 0; i < inputImageNames.size(); i++) {
-        cornerCoords.push_back(Point(-1, -1));
-    }
-
-    printf("Sequence loaded. \n");
-
-  // iterate through image frames
-  for (int i = 0; i < inputImageNames.size(); i++) {
-
-    printf("\r%.3f%% Complete", float(i/inputImageNames.size()));
-
-    // allocate image frame
-    R2Image *image_frame = new R2Image(inputImageNames[i].c_str());
-    verifyImageAllocation(image_frame);
-
-    // Find trackers on image
-    //dont try this until have succesfully imported
-    if (debugMode) printf("Identifying corners on image %d\n", i+1);
-    image_frame->identifyCorners(markerImages, cornerCoords);
-
-    // Write output image
-    writeImage(image_frame, outputImageNames[i].c_str());
-
-    // printf("Processed!\n", i);
-
-    // clean up memory
-    delete image_frame;
-  }
-  printf("\nSequence done!\n");
-}
-
-void processImageSequence(int argc, char **argv, char *input_folder_name) {
-  if (debugMode) printf("processing image sequence...\n");
-  char *image_base_name = *argv; argv++, argc--;
-  char *output_folder_name = *argv; argv++, argc--;
-  
-  if (debugMode) printf("pulled out strings from input.\n");
-
-  // extract image names
-  std::vector<std::string> inputImageNames;
-  std::vector<std::string> outputImageNames;
-  grabImageNames(inputImageNames, outputImageNames, input_folder_name, image_base_name, output_folder_name);
-  assert(inputImageNames.size() == outputImageNames.size());
-
-  // break if no images
-  if (inputImageNames.size() <= 0) return;
-
-  if (debugMode) printf("Grabbed %lu image names \n", inputImageNames.size());
-
-  // Parse arguments and perform operations
-  while (argc > 0) {
-    if (!strcmp(*argv, "-harryPotterize")) {
-      CheckOption(*argv, argc, 3);
-      char* marker_folder_name = argv[1];
-      char* marker_base_name = argv[2];
-      argv += 3, argc -= 3;
-
-      // import marker images
-      std::vector<R2Image> markerImages;
-      importMarkerImages(markerImages, marker_folder_name, marker_base_name);
-      if (debugMode) printf("marker images grabbed.\n");    
-
-      // for (int i = 0; i < markerImages.size(); i++) {
-      //     writeImage(&markerImages[i], outputImageNames[i].c_str());
-      // }
-      // return;  
-
-      // do the magic
-      harryPotterizeSequence(inputImageNames, outputImageNames, markerImages);
-    }
-    else {
-      // Unrecognized program argument
-      fprintf(stderr, "image: invalid option: %s\n", *argv);
-      ShowUsage();
-    }
-  }
-}
-
-
-
-
-
-//////////////////
-/// Main 
-/////////////////
-
-int
-main(int argc, char **argv)
-{
-  // Look for help
-    for (int i = 0; i < argc; i++) {
-      if (!strcmp(argv[i], "-help")) {
-        ShowUsage();
-      }
-	    if (!strcmp(argv[i], "-svdTest")) {
-        R2Image *image = new R2Image();
-	      image->testDLT();
-	      return 0;
-      }
-    }
-
-  // Read input filename
-  if (argc < 3)  ShowUsage();
-  argv++, argc--; // First argument is program name
-  char *input_name = *argv; argv++, argc--;
-  
-  // This could probably be made lighter weight by just looking at last 3 characters of char*
-  std::string input_string(input_name);
-  bool inputIsImage = input_string.find(".jpg") != std::string::npos;
-
-  if (inputIsImage) {
-    processImage(argc, argv, input_name);
-  } else {
-    processImageSequence(argc, argv, input_name);
-  }
-
-  return EXIT_SUCCESS;
 }
 
 
