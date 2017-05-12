@@ -102,8 +102,7 @@ bool checkFileExistance(const std::string& file_name) {
 ////////////////////////////
 // Image Sequence Processing
 ////////////////////////////
-
-bool debugMode = false;
+bool debugMode = true;
 
 // overloaded version. Finds images in a single file given a base name structure
 void grabImageNames(std::vector<std::string>& imageNames, char *folder_name, char *base_name) {
@@ -150,6 +149,15 @@ void grabImageNames(std::vector<std::string>& inputImageNames, std::vector<std::
   }
 }
 
+// void generateOutputNames(std::vector<std::string>& inputImageNames, std::vector<std::string>& outputImageNames, char *input_folder_name, char *image_base_name, char *output_folder_name) {
+//   const std::string inputNameBase = std::string(input_folder_name) + "/" + std::string(image_base_name);
+//   const std::string outputNameBase = std::string(output_folder_name) + "/" + std::string(image_base_name);
+
+//   for (int i = 0; i < inputImageNames.size()
+//   std::string outputName = outputNameBase + std::to_string(i) + ".jpg";
+//   outputImageNames.push_back(outputName);
+// }
+
 void importMarkerImages(std::vector<R2Image>& markerImages, char* marker_folder_name, char* marker_base_name) {
   std::vector<std::string> markerImageNames;
   grabImageNames(markerImageNames, marker_folder_name, marker_base_name);
@@ -162,78 +170,58 @@ void importMarkerImages(std::vector<R2Image>& markerImages, char* marker_folder_
     markerImages.push_back(*marker);
   }
 
-//  assert(markerImages.size() == 4);
+  assert(markerImages.size() == 4);
 }
 
-void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<R2Image> &markerImages, R2Image* otherImage) {
+void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<R2Image> &markerImages, R2Image* otherImage, bool multithreaded) {
+  if (debugMode) printf("Sequence loaded. \n");
+  
   // initalize to (-1, -1) so we can tell they havent been set yet
   std::vector<Point> cornerCoords;
-    for (int i = 0; i < inputImageNames.size(); i++) {
-        cornerCoords.push_back(Point(-1, -1));
-    }
-
-    printf("Sequence loaded. \n");
-
-    // this loop is for timing single vs multithread versions
-    for (int k = 0; k < 2; k++) {
-    for (int i = 0; i < inputImageNames.size(); i++) {
-       cornerCoords[i] = (Point(-1, -1));
-    }
-    if (k == 0) {
-        printf("Single thread:\n");
-      } else {
-        printf("Multi threaded:\n");
-      }
-
-    // regular stuff
-     
-    Timer outerTimer;
-    outerTimer.start();
-
-    Timer innerTimer;
-  // iterate through image frames
   for (int i = 0; i < inputImageNames.size(); i++) {
-    //printf("%.3f%% Complete\n", float(i) / float(inputImageNames.size()));
+      cornerCoords.push_back(Point(-1, -1));
+  }
+  
+  // start overall timer
+  Timer outerTimer;
+  outerTimer.start();
+
+  Timer innerTimer;
+
+// iterate through image frames
+  for (int i = 0; i < inputImageNames.size(); i++) {
+    //if (debugMode) printf("%.3f%% Complete\n", float(i) / float(inputImageNames.size()));
 
     // allocate image frame
     R2Image *image_frame = new R2Image(inputImageNames[i].c_str());
     verifyImageAllocation(image_frame);
 
-    // set mode for timing comparison
-    if (k == 0) {
-        image_frame->setMultiThread(false);
-      } else {
-        image_frame->setMultiThread(true);
-      }
+    // set threading mode
+    image_frame->setMultiThread(multithreaded);
 
-    innerTimer.start();
     // Find trackers on image
+    innerTimer.start();
     image_frame->identifyCorners(markerImages, cornerCoords);
-   // printf("Image %d corners found ...%d ms \n", i+1, innerTimer.elapsedTime());
+    if (debugMode) printf("Image %d corners found ...%d ms \n", i+1, innerTimer.elapsedTime());
 
+    // Warp in other image
     innerTimer.start();
     image_frame->placeImageInFrame(cornerCoords, *otherImage);
-    //printf("Image %d image warped in...%d ms \n", i+1, innerTimer.elapsedTime());
-
+    if (debugMode) printf("Image %d image warped in...%d ms \n", i+1, innerTimer.elapsedTime());
 
     // Write output image
     writeImage(image_frame, outputImageNames[i].c_str());
 
-    // printf("Processed!\n", i);
-
     // clean up memory
     delete image_frame;
   }
-  printf("\nSequence done! %lu frames %d seconds\n", inputImageNames.size(), outerTimer.elapsedTime() / 1000);
-  }
+
+  if (debugMode) printf("Sequence done! %lu frames %d seconds\n\n", inputImageNames.size(), outerTimer.elapsedTime() / 1000);
 }
 
 void processImageSequence(int argc, char **argv, char *input_folder_name) {
-  if (debugMode) printf("processing image sequence...\n");
   char *image_base_name = *argv; argv++, argc--;
   char *output_folder_name = *argv; argv++, argc--;
-  
-  if (debugMode) printf("pulled out strings from input.\n");
 
   // extract image names
   std::vector<std::string> inputImageNames;
@@ -244,7 +232,7 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
   // break if no images
   if (inputImageNames.size() <= 0) return;
 
-  if (debugMode) printf("Grabbed %lu image names \n", inputImageNames.size());
+  if (debugMode) printf("Found %lu images \n", inputImageNames.size());
 
   // Parse arguments and perform operations
   while (argc > 0) {
@@ -255,18 +243,33 @@ void processImageSequence(int argc, char **argv, char *input_folder_name) {
       R2Image* other_image = new R2Image(argv[3]);
       argv += 4, argc -= 4;
 
+      std::vector<std::string> inputInnerImageNames;
+      grabImageNames(inputInnerImageNames, outputImageNames, input_folder_name, image_base_name, output_folder_name);
+
       // import marker images
       std::vector<R2Image> markerImages;
       importMarkerImages(markerImages, marker_folder_name, marker_base_name);
-      if (debugMode) printf("marker images grabbed.\n");    
+      if (debugMode) printf("Found marker images\n");    
 
       // for (int i = 0; i < markerImages.size(); i++) {
       //     writeImage(&markerImages[i], outputImageNames[i].c_str());
       // }
-      // return;  
+      // return;
 
-      // do the magic
-      harryPotterizeSequence(inputImageNames, outputImageNames, markerImages, other_image);
+      // test single vs multithread
+      bool testThreadSpeeds = true;
+      if (testThreadSpeeds) {
+        // Single thread test
+        printf("Single thread:\n");
+        harryPotterizeSequence(inputImageNames, outputImageNames, markerImages, other_image, false);
+
+        // Multi thread test
+        printf("Multi thread:\n");
+        harryPotterizeSequence(inputImageNames, outputImageNames, markerImages, other_image, true);
+      } else {
+        // do the magic
+        harryPotterizeSequence(inputImageNames, outputImageNames, markerImages, other_image, false);
+      }
     }
     else {
       // Unrecognized program argument

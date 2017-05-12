@@ -17,5 +17,5 @@ make
 popd
 
 # run harryPotterize
-# src/imgpro input/screen_corners screen_corners output/screen_corners \
-    # -harryPotterize input/markers marker
+src/imgpro input/screen_corners screen_corners output/screen_corners \
+    -harryPotterize input/markers marker input/d_face1.jpg
