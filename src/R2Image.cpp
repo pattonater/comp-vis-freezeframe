@@ -284,8 +284,10 @@ findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, 
         
 
       // Iterate over image
-      while (xStepSize != 0) {
-        // printf("xStep: %d    yStep: %d\n", xStepSize, yStepSize);
+       while (xStepSize != 0) {
+         // SEARCH BOX VISUALIZATION
+         //drawSquare(xMin, yMin, xMax, yMax, 0, 0, 1);
+          // printf("xStep: %d    yStep: %d\n", xStepSize, yStepSize);
         for (int x = xMin; x < xMax; x += xStepSize) {
           //printf("Reached row %d... \n", x + 1);
           for (int y = yMin; y < yMax; y += yStepSize) {
@@ -1107,6 +1109,24 @@ drawSquare(const int x, const int y, const int reach, const float r, const float
     Pixel(xMax, yi) = R2Pixel(r, g, b, 1);
     Pixel(xi, yMin) = R2Pixel(r, g, b, 1);
     Pixel(xi, yMax) = R2Pixel(r, g, b, 1);
+  }
+}
+
+void R2Image::
+drawSquare(const int x0, const int y0, const int x1, const int y1, const float r, const float g, const float b) {
+  const int xMin = fmax(0, x0);
+  const int xMax = fmin(width - 1, x1);
+  const int yMin = fmax(0, y0);
+  const int yMax = fmin(width - 1, y1);
+
+  for (int x = xMin; x <= xMax; x++) {
+    Pixel(x, yMin) = R2Pixel(r,g,b,1);
+    Pixel(x, yMax) = R2Pixel(r,g,b,1);
+  }
+
+  for (int y = yMin; y <= yMax; y++) {
+    Pixel(xMin, y) = R2Pixel(r,g,b,1);
+    Pixel(xMax, y) = R2Pixel(r,g,b,1);
   }
 }
 

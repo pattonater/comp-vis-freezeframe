@@ -19,16 +19,23 @@ popd
 # initialize variable names
 outputVideo="output/tracked.mp4"
 inputFolder="input/tmp_stills"
+innerInputFolder="input/inner_tmp_stills"
 imageBaseName="img_still"
 outputFolder="output/tmp_stills"
 fps=24
+
 # these must already exist
-inputVideo="input/screen_corners.m4v"
+outerVideo="input/screen_corners.m4v"
+innerVideo="input/innerVideo.MOV"
 markersFolder="input/markers"
 markerBaseName="marker"
+
 inputPhoto="input/d_face1.jpg"
 
 # remove any files left over from previous runs
+if test -d $innerInputFolder; then 
+    rm -r $innerInputFolder
+fi
 if test -d $inputFolder; then 
     rm -r $inputFolder
 fi
@@ -39,14 +46,18 @@ if test -e $outputVideo; then
     rm $outputVideo
 fi
 
-# make folders and fill input folder with image stills from video
+# make folders
 mkdir $inputFolder
+mkdir $innerInputFolder
 mkdir $outputFolder
-ffmpeg -i $inputVideo -vf fps=$fps $inputFolder/$imageBaseName%d.jpg
+
+# fill input folder with image stills from video
+ffmpeg -i $outerVideo -vf fps=$fps $inputFolder/$imageBaseName%d.jpg
+ffmpeg -i $innerVideo -vf fps=$fps $innerInputFolder/$imageBaseName%d.jpg
 
 # run harryPotterize on folder
 src/imgpro $inputFolder $imageBaseName $outputFolder \
-    -harryPotterize $markersFolder $markerBaseName $inputPhoto
+    -harryPotterize $markersFolder $markerBaseName $innerInputFolder
 
 # make video out of output images
 ffmpeg -framerate $fps -i $outputFolder/$imageBaseName%d.jpg $outputVideo
@@ -54,3 +65,4 @@ ffmpeg -framerate $fps -i $outputFolder/$imageBaseName%d.jpg $outputVideo
 # erase image stills
 rm -r $inputFolder
 rm -r $outputFolder
+rm -r $innerInputFolder
