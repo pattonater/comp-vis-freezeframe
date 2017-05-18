@@ -30,19 +30,61 @@ setMultiThread(bool mode) {
 ///////////////////////
 // Freeze Frame
 //////////////////////
+Point calculateExtensionVector(Point& base, Point& a, Point& b) {
+  Point vec1 = base - a;
+  Point vec2 = base - b;
+
+  //have to calculate seperately otherwise lose accuracy
+  vec1 /= vec1.length();
+  vec2 /= vec2.length();
+
+  // calculate directional vector from adjacent points and shift
+  Point vec3 = vec1 + vec2;
+ //vec3 /= vec3.length();
+
+  return vec3;
+}
+
 void R2Image::
 placeImageInFrame(std::vector<Point>& markerLocations, R2Image& otherImage) {
-  // dependent on order of marker images... potentially fix later
-  Point& markerBottomLeft  = markerLocations[0];
-  Point& markerBottomRight = markerLocations[1];
-  Point& markerTopLeft     = markerLocations[2];
-  Point& markerTopRight    = markerLocations[3];
+  otherImage.Blur(1.3, true);
+
+  // dependent on order of marker images... potentially fix later (these cant be references will fuck shit up)
+  Point markerBottomLeft  = markerLocations[0];
+  Point markerBottomRight = markerLocations[1];
+  Point markerTopLeft     = markerLocations[2];
+  Point markerTopRight    = markerLocations[3];
+
+
+  // Calculate vectors to expand frame correctly
+
+  // DONT DELETE THESE JUST COMMENT OUT AND REDEFINE
+  // manual shifts to frame size
+  float roughScaleChange = 30;
+  Point blShift = Point(8, 3);
+  Point brShift = Point(-6, 1);
+  Point tlShift = Point(8, -8.5);
+  Point trShift = Point(-6, -3.5);
+
+  Point bottomLeftExtension = calculateExtensionVector(markerBottomLeft, markerBottomRight, markerTopLeft) * roughScaleChange;
+  Point bottomRightExtension = calculateExtensionVector(markerBottomRight, markerBottomLeft, markerTopRight) * roughScaleChange;
+  Point topLeftExtension = calculateExtensionVector(markerTopLeft, markerBottomLeft, markerTopRight) * roughScaleChange;
+  Point topRightExtension = calculateExtensionVector(markerTopRight, markerBottomRight, markerTopLeft) * roughScaleChange;
+
+
+
+  // finalize frame values
+  markerBottomLeft += bottomLeftExtension + blShift;
+  markerBottomRight += bottomRightExtension + brShift;
+  markerTopLeft += topLeftExtension + tlShift;
+  markerTopRight += topRightExtension + trShift;
 
   Point imageBottomLeft  = Point(0, 0);
   Point imageBottomRight = Point(otherImage.width, 0);
   Point imageTopLeft     = Point(0, otherImage.height);
   Point imageTopRight    = Point(otherImage.width, otherImage.height);
 
+  // Calculate Homography matrix for mapping image
   std::vector<double> H;
   std::vector<PointMatch> pointMatches;
 
@@ -53,8 +95,8 @@ placeImageInFrame(std::vector<Point>& markerLocations, R2Image& otherImage) {
 
   computeHomographyMatrixWithDLT(pointMatches, H);
 
+  // Warp image into frame
   Frame frame = Frame(markerBottomLeft, markerBottomRight, markerTopLeft, markerTopRight);
-
   warpImageIntoFrame(H, otherImage, frame);
 }
 
@@ -101,7 +143,7 @@ identifyCorners(std::vector<R2Image>& markers, std::vector<Point>& oldMarkerLoca
   // Mark each location
   for (int i = 0; i < markerLocations.size(); i++) {
     Point& p = markerLocations[i];
-    drawFilledSquare(p.x, p.y, 10, 1.0, 0.0, 0.0);
+    //drawFilledSquare(p.x, p.y, 10, 1.0, 0.0, 0.0);
     oldMarkerLocations[i] = p;
   }
 }

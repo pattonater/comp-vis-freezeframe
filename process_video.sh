@@ -16,18 +16,20 @@ pushd src
 make
 popd
 
-# initialize variable names
-outputVideo="output/tracked.mp4"
+# input variables
+outputVideo="output/front_half.mp4"
+fps=24
+
+# tmp names
 inputFolder="input/tmp_stills"
 innerInputFolder="input/inner_tmp_stills"
 imageBaseName="img_still"
 outputFolder="output/tmp_stills"
-fps=24
 
 # these must already exist
-outerVideo="input/screen_corners.m4v"
-innerVideo="input/innerVideo.MOV"
-markersFolder="input/markers"
+outerVideo="input/skit/skit_videos/front_half.mov"
+innerVideo="input/skit/article_videos/data_mining.mov"
+markersFolder="input/skit/skit_front_markers"
 markerBaseName="marker"
 
 inputPhoto="input/d_face1.jpg"

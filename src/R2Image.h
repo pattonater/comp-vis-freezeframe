@@ -35,6 +35,29 @@ struct Point {
   Point(double a, double b) {
     x = a; y = b;
   }
+  
+  float length() {
+    return sqrt(x * x + y * y);
+  }
+  Point operator+(const Point& point) {
+    return Point(x + point.x, y + point.y);
+  }
+  Point operator+=(const Point& point) {
+    x += point.x;
+    y += point.y;
+    return *this;
+  }
+  Point operator/=(const float divisor) {
+    x /= divisor;
+    y /= divisor;
+    return *this;
+  }
+  Point operator*(const float multiplier) {
+    return Point(x * multiplier, y * multiplier);
+  }
+  Point operator-(const Point& point) {
+    return Point(x - point.x, y - point.y);
+  }
 };
 
 struct PointMatch {
@@ -231,7 +254,8 @@ class R2Image {
 
   // Drawing
   void drawSquare(const int x, const int y, const int reach, const float r, const float g, const float b);
-    void drawFilledSquare(const int x, const int y, const int reach, const float r, const float g, const float b);
+  void drawSquare(const int x0, const int y0, const int x1, const int x2, const float r, const float g, const float b);
+  void drawFilledSquare(const int x, const int y, const int reach, const float r, const float g, const float b);
   void drawLine(int x0, int y0, int x1, int y1, const float r, const float g, const float b);
   void drawCircle(const int xCenter, const int yCenter, const int radius, const float r, const float g, const float b);
 

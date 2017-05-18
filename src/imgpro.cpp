@@ -105,7 +105,7 @@ bool checkFileExistance(const std::string& file_name) {
 bool debugMode = false;
 
 void grabImageNames(std::vector<std::string>& inputImageNames, char *input_folder_name, char *image_base_name) {
-  const int maxNumberImages = 50;
+  const int maxNumberImages = 5000;
 
   const std::string inputNameBase = std::string(input_folder_name) + "/" + std::string(image_base_name);
 
@@ -145,8 +145,12 @@ void importMarkerImages(std::vector<R2Image>& markerImages, char* marker_folder_
 }
 
 void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<std::string> &inputInnerImageNames, std::vector<R2Image> &markerImages, bool multithreaded) {
-  const float videoStartTime = 0;
-  const int fps = 24;
+  const float fps = 24;
+  const float videoStartTime = 0 * fps;
+  const float videoAnimateTime = 2 * fps;
+  const float videoEndTime = 100 * fps;
+  
+  
   if (debugMode) printf("Sequence loaded... \n");
   
   // initalize to (-1, -1) so we can tell they havent been set yet
@@ -166,7 +170,10 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
 
 // iterate through image frames
   for (int i = 0; i < inputImageNames.size(); i++) {
-    //if (debugMode) printf("%.3f%% Complete\n", float(i) / float(inputImageNames.size()));
+    printf("%.2f%% Complete\n", 100 * float(i) / float(inputImageNames.size()));
+
+    if (i < videoStartTime) continue;
+    if (i > videoEndTime) break;
 
     // allocate image frame
     R2Image *imageFrame = new R2Image(inputImageNames[i].c_str());
@@ -175,8 +182,10 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
     //allocate inner image
     R2Image *innerFrame;
     if (i < inputInnerImageNames.size()) {
-      int frameNum = i - videoStartTime * fps;
-      if (frameNum < 0) frameNum = 0;
+      // always grab first frame if before videoAnimateTime
+      int frameNum = i - videoAnimateTime;
+      frameNum = fmax(0, frameNum);
+
       innerFrame = new R2Image(inputInnerImageNames[frameNum].c_str());
       verifyImageAllocation(innerFrame);
       delete previousInnerFrame;
