@@ -200,7 +200,7 @@ class R2Image {
   void placeImageInFrame(std::vector<Point>& markerLocations, R2Image& otherImage);
   void findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, std::vector<Point>& oldMarkerLocations);
   void computeHomographyMatrixWithDLT(const std::vector<PointMatch>& matches, std::vector<double>& homographyMatrix) const;
-  void warpImageIntoFrame(const std::vector<double>& homographyMatrix, R2Image& otherImage, Frame& frame, Frame& markersFrame);
+  void warpImageIntoFrame(const std::vector<double>& homographyMatrix, R2Image& otherImage, Frame& frame);
   double calculateOpacity(const double x, const double y, const double borderSize, R2Image& image) const;
   int findSide(const double x, const double y, R2Image& image) const;
   R2Pixel findSampleColor(const double x, const double y, const double opacity, const double borderWidth, const int side);

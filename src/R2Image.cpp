@@ -103,9 +103,8 @@ placeImageInFrame(std::vector<Point>& markerLocations, R2Image& otherImage) {
   computeHomographyMatrixWithDLT(pointMatches, H);
 
   // Warp image into frame
-  Frame originalFrame = Frame(markerBottomLeft, markerBottomRight, markerTopLeft, markerTopRight);
   Frame shiftedFrame = Frame(shiftedBL, shiftedBR, shiftedTL, shiftedTR);
-  warpImageIntoFrame(H, otherImage, shiftedFrame, originalFrame);
+  warpImageIntoFrame(H, otherImage, shiftedFrame);
 }
 
 double R2Image:: 
@@ -159,33 +158,23 @@ findSampleColor(const double x, const double y, const double opacity, const doub
   if (opacity == 0 || side == -1) return R2Pixel(1,0,0,1);
   
   // this should just be borderWidth * opacity...dont understand why that doesnt work
-  const double distIn =  10 * opacity; // * opacity / 15.0;
+  const double distIn =  (borderWidth / 4) * opacity; // * opacity / 15.0;
   double offset = distIn + 7;
 
   
   double x2; double y2;
   R2Pixel* samplingPixel;
   if (side == LEFT_SIDE) {
-    // x2 = x - offset + 3;
-    // y2 = y;
     samplingPixel =  &Pixel(x - offset - 1, y);
   } else if (side == RIGHT_SIDE) { 
-    // x2 = x + offset + 4;
-    // y2 = y;
     samplingPixel =  &Pixel(x + offset + 2, y);
   } else if (side == TOP_SIDE) {
-    //  x2 = x;
-    // y2 = y + offset -5;
     samplingPixel =  &Pixel(x, y + offset - 5);
   } else {
-    // x2 = x;
-    // y2 = y - offset + 4;
      samplingPixel = &Pixel(x, y - offset + 1.5);
   }
   //Pixel(x, y) = R2Pixel(0,1,0,1);
   //*samplingPixel = R2Pixel(1,0,0,1);
-  //printf("offset: %f \n", opacity * borderWidth);
-  //printf("opacity: %f, distIn: %f (%f, %f) -> (%f, %f) \n", opacity, distIn, x, y, x2, y2);
   
   return *samplingPixel;
 }
@@ -193,7 +182,7 @@ findSampleColor(const double x, const double y, const double opacity, const doub
 
 
 void R2Image::
-warpImageIntoFrame(const std::vector<double>& homographyMatrix, R2Image& otherImage, Frame& frame, Frame& markersFrame) {
+warpImageIntoFrame(const std::vector<double>& homographyMatrix, R2Image& otherImage, Frame& frame) {
   int xLower = fmin(frame.topLeft.x, frame.bottomLeft.x);
   int xUpper = fmax(frame.topRight.x, frame.bottomRight.x) + 1;
   int yLower = fmin(frame.bottomLeft.y, frame.bottomRight.y);
