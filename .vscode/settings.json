@@ -15,6 +15,7 @@
         "__split_buffer": "cpp",
         "utility": "cpp",
         "vector": "cpp",
-        "algorithm": "cpp"
+        "algorithm": "cpp",
+        "__bit_reference": "cpp"
     }
 }

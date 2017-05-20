@@ -55,6 +55,7 @@ struct Point {
   Point operator*(const float multiplier) {
     return Point(x * multiplier, y * multiplier);
   }
+
   Point operator-(const Point& point) {
     return Point(x - point.x, y - point.y);
   }
@@ -199,7 +200,10 @@ class R2Image {
   void placeImageInFrame(std::vector<Point>& markerLocations, R2Image& otherImage);
   void findMarkers(std::vector<R2Image>& markers, std::vector<Point>& markerLocations, std::vector<Point>& oldMarkerLocations);
   void computeHomographyMatrixWithDLT(const std::vector<PointMatch>& matches, std::vector<double>& homographyMatrix) const;
-  void warpImageIntoFrame(const std::vector<double>& homographyMatrix, R2Image& otherImage, Frame& frame);
+  void warpImageIntoFrame(const std::vector<double>& homographyMatrix, R2Image& otherImage, Frame& frame, Frame& markersFrame);
+  double calculateOpacity(const double x, const double y, const double borderSize, R2Image& image) const;
+  int findSide(const double x, const double y, R2Image& image) const;
+  R2Pixel findSampleColor(const double x, const double y, const double opacity, const double borderWidth, const int side);
   // void* findMarkersThread(void * inputPointer);
   void setMultiThread(bool mode);
 
@@ -253,7 +257,7 @@ class R2Image {
   void flipMatchDirections(std::vector<FeatureMatch>& matches) const;
 
   // Drawing
-  void drawSquare(const int x, const int y, const int reach, const float r, const float g, const float b);
+  //void drawSquare(const int x, const int y, const int reach, const float r, const float g, const float b);
   void drawSquare(const int x0, const int y0, const int x1, const int x2, const float r, const float g, const float b);
   void drawFilledSquare(const int x, const int y, const int reach, const float r, const float g, const float b);
   void drawLine(int x0, int y0, int x1, int y1, const float r, const float g, const float b);

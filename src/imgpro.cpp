@@ -105,7 +105,7 @@ bool checkFileExistance(const std::string& file_name) {
 bool debugMode = false;
 
 void grabImageNames(std::vector<std::string>& inputImageNames, char *input_folder_name, char *image_base_name) {
-  const int maxNumberImages = 5000;
+  const int maxNumberImages = 500;
 
   const std::string inputNameBase = std::string(input_folder_name) + "/" + std::string(image_base_name);
 
@@ -147,8 +147,8 @@ void importMarkerImages(std::vector<R2Image>& markerImages, char* marker_folder_
 void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vector<std::string> &outputImageNames, std::vector<std::string> &inputInnerImageNames, std::vector<R2Image> &markerImages, bool multithreaded) {
   const float fps = 24;
   const float videoStartTime = 0 * fps;
-  const float videoAnimateTime = 2 * fps;
-  const float videoEndTime = 100 * fps;
+  const float videoAnimateTime = 0.75 * fps;
+  const float videoEndTime = 1000 * fps;
   
   
   if (debugMode) printf("Sequence loaded... \n");
@@ -159,39 +159,38 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
       cornerCoords.push_back(Point(-1, -1));
   }
 
-
   // start overall timer
   Timer outerTimer;
   outerTimer.start();
   Timer innerTimer;
 
 
-  R2Image *previousInnerFrame = NULL;
-
 // iterate through image frames
   for (int i = 0; i < inputImageNames.size(); i++) {
     printf("%.2f%% Complete\n", 100 * float(i) / float(inputImageNames.size()));
 
-    if (i < videoStartTime) continue;
-    if (i > videoEndTime) break;
-
     // allocate image frame
-    R2Image *imageFrame = new R2Image(inputImageNames[i].c_str());
+    R2Image *imageFrame = new R2Image(inputImageNames[i].c_str()); 
     verifyImageAllocation(imageFrame);
+
+     if (i < videoStartTime) {
+      writeImage(imageFrame, outputImageNames[i].c_str());
+      continue;
+    }
 
     //allocate inner image
     R2Image *innerFrame;
-    if (i < inputInnerImageNames.size()) {
+    if (i < inputInnerImageNames.size() + videoAnimateTime) {
       // always grab first frame if before videoAnimateTime
       int frameNum = i - videoAnimateTime;
       frameNum = fmax(0, frameNum);
 
       innerFrame = new R2Image(inputInnerImageNames[frameNum].c_str());
       verifyImageAllocation(innerFrame);
-      delete previousInnerFrame;
-      previousInnerFrame = innerFrame;
+
     } else {
-      innerFrame = previousInnerFrame;
+      innerFrame = new R2Image(inputInnerImageNames[inputInnerImageNames.size() - 1].c_str());
+      verifyImageAllocation(innerFrame);
     }
 
     // set threading mode
@@ -212,14 +211,13 @@ void harryPotterizeSequence(std::vector<std::string> &inputImageNames, std::vect
     if (debugMode) innerTimer.start();
     imageFrame->placeImageInFrame(cornerCoords, *innerFrame);
     if (debugMode) printf("Image %d image warped in...%d ms \n", i+1, innerTimer.elapsedTime());
-
+    
     // Write output image
     writeImage(imageFrame, outputImageNames[i].c_str());
 
     // clean up memory
     delete imageFrame;
   }
-  delete previousInnerFrame;
   if (debugMode) printf("Sequence done! %lu frames %d seconds\n\n", inputImageNames.size(), outerTimer.elapsedTime() / 1000);
 }
 

@@ -17,7 +17,7 @@ make
 popd
 
 # input variables
-outputVideo="output/front_half.mp4"
+outputVideo="output/back_half.mp4"
 fps=24
 
 # tmp names
@@ -28,8 +28,9 @@ outputFolder="output/tmp_stills"
 
 # these must already exist
 outerVideo="input/skit/skit_videos/front_half.mov"
-innerVideo="input/skit/article_videos/data_mining.mov"
+innerVideo="input/skit/article_videos/data_mining_filtered_short.mov"
 markersFolder="input/skit/skit_front_markers"
+
 markerBaseName="marker"
 
 inputPhoto="input/d_face1.jpg"
@@ -54,8 +55,11 @@ mkdir $innerInputFolder
 mkdir $outputFolder
 
 # fill input folder with image stills from video
-ffmpeg -i $outerVideo -vf fps=$fps $inputFolder/$imageBaseName%d.jpg
-ffmpeg -i $innerVideo -vf fps=$fps $innerInputFolder/$imageBaseName%d.jpg
+# ffmpeg -i $outerVideo -crf 0 -vf fps=$fps $inputFolder/$imageBaseName%d.jpg
+# ffmpeg -i $innerVideo -crf 0 -vf fps=$fps $innerInputFolder/$imageBaseName%d.jpg
+ffmpeg -i $outerVideo -qscale:v 2 $inputFolder/$imageBaseName%d.jpg
+ffmpeg -i $innerVideo -qscale:v 2 $innerInputFolder/$imageBaseName%d.jpg
+
 
 # run harryPotterize on folder
 src/imgpro $inputFolder $imageBaseName $outputFolder \
